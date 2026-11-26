@@ -46,6 +46,37 @@ function makeResponse(status, data, headers) {
 }
 
 // Native iOS: requests leave the phone directly, no CORS, residential IP.
+// YouTube's current auth header: one hash per SAPISID variant, computed for the
+// ORIGIN THE REQUEST GOES TO (music.youtube.com vs www.youtube.com).
+// youtubei.js always hashes for www.youtube.com, so YT Music saw us as logged out.
+let currentCookie = null;
+const ck = (c, name) => (c.match(new RegExp('(?:^|;\\s*)' + name.replace(/[$]/g, '\\$&') + '=([^;]+)')) || [])[1];
+async function sha1hex(str) {
+  const buf = await crypto.subtle.digest('SHA-1', new TextEncoder().encode(str));
+  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+async function authHeaders(url) {
+  if (!currentCookie) return null;
+  const u = new URL(url);
+  if (!/(^|\.)youtube\.com$/.test(u.hostname) || !u.pathname.startsWith('/youtubei/')) return null;
+  const origin = 'https://' + u.hostname;
+  const ts = Math.floor(Date.now() / 1000);
+  const parts = [];
+  for (const [scheme, name] of [['SAPISIDHASH', 'SAPISID'], ['SAPISID1PHASH', '__Secure-1PAPISID'], ['SAPISID3PHASH', '__Secure-3PAPISID']]) {
+    const v = ck(currentCookie, name) || (name === 'SAPISID' ? ck(currentCookie, '__Secure-3PAPISID') : null);
+    if (v) parts.push(`${scheme} ${ts}_${await sha1hex(`${ts} ${v} ${origin}`)}`);
+  }
+  if (!parts.length) return null;
+  return { authorization: parts.join(' '), 'x-origin': origin, origin, 'x-goog-authuser': '0', cookie: currentCookie };
+}
+function applyAuth(headers, extra) {
+  if (!extra) return;
+  for (const k of Object.keys(headers)) {
+    if (['authorization', 'x-origin', 'origin', 'x-goog-authuser', 'cookie'].includes(k.toLowerCase())) delete headers[k];
+  }
+  Object.assign(headers, extra);
+}
+
 function u8ToB64(u8) {
   let s = '';
   for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000));
@@ -54,6 +85,7 @@ function u8ToB64(u8) {
 
 async function nativeFetch(input, init) {
   const { url, method, headers, body, binary } = await readRequest(input, init);
+  applyAuth(headers, await authHeaders(url));
   let data = body;
   let dataType;
   if (binary) {
@@ -80,6 +112,7 @@ async function nativeFetch(input, init) {
 // Desktop browser (npm run dev): go through the Vite dev proxy.
 async function devFetch(input, init) {
   const { url, method, headers, body, binary } = await readRequest(input, init);
+  applyAuth(headers, await authHeaders(url));
   if (binary) return fetch('/__proxy?u=' + encodeURIComponent(url), { method, headers, body: binary });
   if (headers.cookie) { headers['x-yt-cookie'] = headers.cookie; delete headers.cookie; }
   return fetch('/__proxy?u=' + encodeURIComponent(url), { method, headers, body });
@@ -101,6 +134,7 @@ export function getYT() {
       // Old OAuth tokens break every request -> drop them.
       await Preferences.remove({ key: CREDS_KEY });
       const cookie = (await Preferences.get({ key: COOKIE_KEY })).value || undefined;
+      currentCookie = cookie || null;
       if (cookie) await syncNativeCookies(cookie);
       return Innertube.create({
         fetch: isNative ? nativeFetch : devFetch,
@@ -145,6 +179,7 @@ export async function signInWithCookie(raw) {
 }
 
 export async function signOut() {
+  currentCookie = null;
   await Preferences.remove({ key: COOKIE_KEY });
   playPromise = null;
   if (isNative) { try { await CapacitorCookies.clearAllCookies(); } catch { /* ignore */ } }
