@@ -3,6 +3,8 @@ import { Innertube, UniversalCache } from 'youtubei.js';
 import { Capacitor, CapacitorHttp, CapacitorCookies } from '@capacitor/core';
 import { Preferences } from '@capacitor/preferences';
 import { createPoMinter } from './po.js';
+import { SabrStream } from 'googlevideo/sabr-stream';
+import { buildSabrFormat, EnabledTrackTypes } from 'googlevideo/utils';
 
 const isNative = Capacitor.isNativePlatform();
 const CREDS_KEY = 'yt_oauth_creds';
@@ -23,8 +25,11 @@ async function readRequest(input, init = {}) {
   let body = init.body;
   if (body == null && req && method !== 'GET' && method !== 'HEAD') body = await req.clone().text();
   if (body instanceof URLSearchParams) body = body.toString();
-  if (body instanceof ArrayBuffer || ArrayBuffer.isView(body)) body = new TextDecoder().decode(body);
-  return { url, method, headers, body };
+  let binary = null;
+  if (body instanceof Blob) body = new Uint8Array(await body.arrayBuffer());
+  if (body instanceof ArrayBuffer) body = new Uint8Array(body);
+  if (ArrayBuffer.isView(body)) binary = new Uint8Array(body.buffer, body.byteOffset, body.byteLength);
+  return { url, method, headers, body, binary };
 }
 
 function makeResponse(status, data, headers) {
@@ -34,16 +39,28 @@ function makeResponse(status, data, headers) {
 }
 
 // Native iOS: requests leave the phone directly, no CORS, residential IP.
+function u8ToB64(u8) {
+  let s = '';
+  for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000));
+  return btoa(s);
+}
+
 async function nativeFetch(input, init) {
-  const { url, method, headers, body } = await readRequest(input, init);
+  const { url, method, headers, body, binary } = await readRequest(input, init);
   let data = body;
+  let dataType;
+  if (binary) {
+    data = u8ToB64(binary);
+    dataType = 'file';
+    if (!Object.keys(headers).some((k) => k.toLowerCase() === 'content-type')) headers['content-type'] = 'application/x-protobuf';
+  }
   const ct = Object.entries(headers).find(([k]) => k.toLowerCase() === 'content-type')?.[1] || '';
-  if (typeof body === 'string' && ct.includes('json')) {
+  if (!binary && typeof body === 'string' && ct.includes('json')) {
     try { data = JSON.parse(body); } catch { /* keep string */ }
   }
-  const binary = /googlevideo\.com|ytimg\.com/.test(url);
-  const r = await CapacitorHttp.request({ url, method, headers, data, responseType: binary ? 'arraybuffer' : 'text' });
-  if (binary) {
+  const binResp = /googlevideo\.com|ytimg\.com/.test(url);
+  const r = await CapacitorHttp.request({ url, method, headers, data, dataType, responseType: binResp ? 'arraybuffer' : 'text' });
+  if (binResp) {
     const b64 = typeof r.data === 'string' ? r.data : '';
     const bin = atob(b64);
     const bytes = new Uint8Array(bin.length);
@@ -55,7 +72,8 @@ async function nativeFetch(input, init) {
 
 // Desktop browser (npm run dev): go through the Vite dev proxy.
 async function devFetch(input, init) {
-  const { url, method, headers, body } = await readRequest(input, init);
+  const { url, method, headers, body, binary } = await readRequest(input, init);
+  if (binary) return fetch('/__proxy?u=' + encodeURIComponent(url), { method, headers, body: binary });
   if (headers.cookie) { headers['x-yt-cookie'] = headers.cookie; delete headers.cookie; }
   return fetch('/__proxy?u=' + encodeURIComponent(url), { method, headers, body });
 }
@@ -364,11 +382,11 @@ function getPlayYT() {
         const po_token = await minter.mintAsWebsafeString(visitorData);
         const yt = await Innertube.create({ ...base, visitor_data: visitorData, po_token });
         poStatus = 'ok';
-        return { yt, minter };
+        return { yt, minter, po_token, fetchFn };
       } catch (e) {
         poStatus = 'błąd: ' + String(e?.message || e).slice(0, 220);
         console.warn('PO token failed', e);
-        return { yt: anon, minter: null };
+        return { yt: anon, minter: null, po_token: undefined, fetchFn };
       }
     })();
     playPromise.catch(() => { playPromise = null; });
@@ -420,4 +438,46 @@ export async function audioBlobUrl(id) {
     }
   }
   throw lastErr || new Error('download failed');
+}
+
+// SABR: YouTube's own streaming protocol (what the web player uses now).
+// Downloads the audio track (AAC/mp4) and plays it from memory.
+export async function sabrAudioBlobUrl(id) {
+  const { yt, minter, po_token, fetchFn } = await getPlayYT();
+  const info = await yt.getBasicInfo(id, await opts(minter, id, { client: 'WEB' }));
+  const sd = info.streaming_data;
+  const ps = info.playability_status;
+  if (ps && ps.status && ps.status !== 'OK') throw new Error('SABR: ' + ps.status + ' ' + (ps.reason || ''));
+  if (!sd?.server_abr_streaming_url) throw new Error('SABR: brak URL');
+  const serverAbrStreamingUrl = await yt.session.player.decipher(sd.server_abr_streaming_url);
+  const ustreamer = info.player_config?.media_common_config?.media_ustreamer_request_config?.video_playback_ustreamer_config;
+  if (!ustreamer) throw new Error('SABR: brak ustreamer config');
+  const formats = (sd.adaptive_formats || []).map((f) => buildSabrFormat(f));
+  const c = yt.session.context.client;
+
+  const sabr = new SabrStream({
+    videoId: id,
+    fetchFunction: fetchFn,
+    serverAbrStreamingUrl,
+    videoPlaybackUstreamerConfig: ustreamer,
+    poToken: po_token,
+    formats,
+    clientInfo: { clientName: 1, clientVersion: c.clientVersion, osName: c.osName, osVersion: c.osVersion },
+  });
+  const { audioStream, selectedFormats } = sabr.start({
+    enabledTrackTypes: EnabledTrackTypes.AUDIO_ONLY,
+    audioPreferences: { container: 'mp4', preferredAudioCodec: 'aac', quality: 'AUDIO_QUALITY_MEDIUM' },
+    isPostLiveDvr: false,
+  });
+  const reader = audioStream.getReader();
+  const parts = [];
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    parts.push(value);
+  }
+  const mime = (selectedFormats?.audioFormat?.mimeType || 'audio/mp4').split(';')[0];
+  const blob = new Blob(parts, { type: mime });
+  if (blob.size < 10000) throw new Error('SABR: za mały plik (' + blob.size + ' B)');
+  return URL.createObjectURL(blob);
 }

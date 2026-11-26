@@ -1,7 +1,7 @@
 // Playback engine: one <video> element for both audio and music videos,
 // a queue, autoplay radio, and lock-screen / Dynamic Island metadata.
 import { useSyncExternalStore } from 'react';
-import { streamUrl, audioBlobUrl, CLIENTS, upNext } from './yt.js';
+import { streamUrl, audioBlobUrl, sabrAudioBlobUrl, CLIENTS, upNext } from './yt.js';
 import * as ytmod from './yt.js';
 
 const el = document.createElement('video');
@@ -66,6 +66,22 @@ async function load(startAt = 0) {
   set({ loading: true, error: '', time: startAt, duration: track.duration || 0 });
   updateMediaSession();
   suppressErrors = true;
+
+  // Audio: SABR first (the path YouTube's own web player uses).
+  if (mode === 'audio') {
+    try {
+      set({ error: 'Ładuję utwór…' });
+      const u = await sabrAudioBlobUrl(track.id);
+      if (token !== loadToken) return;
+      if (lastBlobUrl) URL.revokeObjectURL(lastBlobUrl);
+      lastBlobUrl = u;
+      if (await tryPlay(u, startAt, token)) { suppressErrors = false; set({ error: '' }); return; }
+      log.push('SABR: media ' + (el.error?.code ?? 'timeout'));
+    } catch (e) {
+      log.push(String(e?.message || e).slice(0, 120));
+    }
+    set({ error: '' });
+  }
 
   for (const client of CLIENTS) {
     if (token !== loadToken) return;
