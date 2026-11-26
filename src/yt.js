@@ -396,7 +396,9 @@ function getPlayYT() {
       const fetchFn = isNative ? nativeFetch : devFetch;
       const cookie = (await Preferences.get({ key: COOKIE_KEY })).value || undefined;
       const base = { fetch: fetchFn, cache: new UniversalCache(false), retrieve_player: true, lang: 'pl', location: 'PL', cookie };
-      const first = await Innertube.create({ ...base, generate_session_locally: !cookie });
+      // Real visitorData from YouTube (not generated locally): iOS keeps YouTube's visitor
+      // cookie in its jar, so the token must be bound to the identity those cookies carry.
+      const first = await Innertube.create({ ...base, generate_session_locally: false });
       const visitorData = first.session.context.client.visitorData;
       let binding = visitorData;
       if (cookie) {
@@ -404,7 +406,7 @@ function getPlayYT() {
         if (ds) binding = ds;
         console.info('[PO] logged in, binding to', ds ? 'DataSync ID' : 'visitorData (no DataSync ID found)');
       } else {
-        console.info('[PO] anonymous, binding to visitorData');
+        console.info('[PO] anonymous, binding to visitorData', String(visitorData).slice(0, 16));
       }
       try {
         const minter = await createPoMinter(first, fetchFn);
