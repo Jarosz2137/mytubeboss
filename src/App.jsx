@@ -151,13 +151,13 @@ function TrackRow({ t, list, i, onOpen, showCover = true, index }) {
     <div className={`row stagger ${active ? 'active' : ''}`} style={{ '--i': Math.min(i, 14) }} onClick={() => { tap(); playList(list, i); }}>
       {showCover ? <Cover src={t.thumb} className="row-cover" /> : <div className="row-index">{index ?? i + 1}</div>}
       <div className="row-text">
-        <div className="row-title">{t.title}</div>
+        <div className="row-title"><Marquee text={t.title} /></div>
         <div className="row-sub">
           {t.type === 'video' && <span className="pill">Teledysk</span>}
           <span
             className={t.artistId ? 'link' : ''}
             onClick={(e) => { if (t.artistId) { e.stopPropagation(); onOpen({ type: 'artist', id: t.artistId }); } }}
-          >{t.subtitle}</span>
+          ><Marquee text={t.subtitle} /></span>
         </div>
       </div>
       {active && p.playing ? <div className="eq"><span /><span /><span /></div> : <div className="row-dur">{t.duration ? fmt(t.duration) : ''}</div>}
@@ -171,8 +171,8 @@ function Card({ item, onOpen, i = 0 }) {
   return (
     <div className="card stagger" style={{ '--i': Math.min(i, 10) }} onClick={() => { tap(); onOpen(item); }}>
       <Cover src={item.thumb} round={kind === 'artist'} />
-      <div className="card-title">{item.title}</div>
-      <div className="card-sub">{kind === 'artist' ? 'Wykonawca' : item.subtitle}</div>
+      <div className="card-title"><Marquee text={item.title} /></div>
+      <div className="card-sub"><Marquee text={kind === 'artist' ? 'Wykonawca' : item.subtitle} /></div>
     </div>
   );
 }
@@ -253,7 +253,7 @@ function QuickPicks({ s }) {
               return (
                 <div className="qp-row stagger" style={{ '--i': i }} key={t.id + i} onClick={() => { tap(); playList(tracks, i); }}>
                   <Cover src={t.thumb} className="qp-cover" />
-                  <div className="row-text"><div className="row-title">{t.title}</div><div className="row-sub">{t.subtitle}</div></div>
+                  <div className="row-text"><div className="row-title"><Marquee text={t.title} /></div><div className="row-sub"><Marquee text={t.subtitle} /></div></div>
                   <button className="icon-btn small" onClick={(e) => { e.stopPropagation(); tap(); addNext(t); }}>{Icon.plus}</button>
                 </div>
               );
@@ -276,7 +276,7 @@ function ListenAgain({ s, onOpen }) {
           return (
             <div className="la-tile stagger" style={{ '--i': i }} key={(it.id || '') + i} onClick={() => { tap(); yt.isPlayable(it) ? playList(s.items.filter(yt.isPlayable), s.items.filter(yt.isPlayable).indexOf(it)) : onOpen(it); }}>
               <Cover src={it.thumb} round={kind === 'artist'} />
-              <div className="la-title">{it.title}</div>
+              <div className="la-title"><Marquee text={it.title} /></div>
             </div>
           );
         })}
@@ -721,7 +721,7 @@ function NowPlaying({ open, onClose, onOpen, sheetRef }) {
             {p.queue.map((q, i) => (
               <div key={q.id + i} style={{ '--i': Math.min(i, 20) }} className={`row stagger ${i === p.index ? 'active' : ''} ${i < p.index ? 'past' : ''}`} onClick={() => { tap(); jump(i); }}>
                 <Cover src={q.thumb} className="row-cover" />
-                <div className="row-text"><div className="row-title">{q.title}</div><div className="row-sub">{q.subtitle}</div></div>
+                <div className="row-text"><div className="row-title"><Marquee text={q.title} /></div><div className="row-sub"><Marquee text={q.subtitle} /></div></div>
               </div>
             ))}
           </div>
@@ -759,11 +759,11 @@ function NowPlaying({ open, onClose, onOpen, sheetRef }) {
         <div className="np-nav" key={'n' + t.id}>
           <button className="np-nav-item left" disabled={!p.queue[p.index - 1]} onClick={() => { tap(); prev(); }}>
             <span className="np-nav-label">‹ Poprzednio</span>
-            <span className="np-nav-title">{p.queue[p.index - 1]?.title || '—'}</span>
+            <span className="np-nav-title"><Marquee text={p.queue[p.index - 1]?.title || '—'} /></span>
           </button>
           <button className="np-nav-item right" disabled={!p.queue[p.index + 1]} onClick={() => { tap(); next(); }}>
             <span className="np-nav-label">Następnie ›</span>
-            <span className="np-nav-title">{p.queue[p.index + 1]?.title || 'Radio z tego utworu'}</span>
+            <span className="np-nav-title"><Marquee text={p.queue[p.index + 1]?.title || 'Radio z tego utworu'} /></span>
           </button>
         </div>
         <div className="np-info">
