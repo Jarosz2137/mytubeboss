@@ -440,34 +440,52 @@ function MiniProgress() {
   return <div className="mini-progress" style={{ transform: `scaleX(${pct / 100})` }} />;
 }
 
-function MiniPlayer({ onExpand, hidden, onDrag, onDragEnd }) {
+function MiniPlayer({ hidden, onDrag, onDragEnd }) {
   const p = usePlayer();
   const t = current();
-  const startY = useRef(null);
+  const ref = useRef();
+  const cb = useRef({ onDrag, onDragEnd });
+  cb.current = { onDrag, onDragEnd };
+
+  // Native, non-passive listeners: preventDefault on move so iOS can't take the gesture.
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    let s0 = null;
+    const start = (e) => {
+      if (e.target.closest('button')) return;
+      const y = e.touches[0].clientY;
+      s0 = { y, ly: y, lt: performance.now(), v: 0, moved: false };
+    };
+    const move = (e) => {
+      if (!s0) return;
+      e.preventDefault();
+      const y = e.touches[0].clientY, now = performance.now();
+      s0.v = (y - s0.ly) / Math.max(1, now - s0.lt); s0.ly = y; s0.lt = now;
+      if (Math.abs(y - s0.y) > 3) s0.moved = true;
+      cb.current.onDrag(Math.min(0, y - s0.y));
+    };
+    const end = (e) => {
+      if (!s0) return;
+      const y = e.changedTouches?.[0]?.clientY ?? s0.ly;
+      const st = s0; s0 = null;
+      cb.current.onDragEnd(st.moved ? y - st.y : 0, st.v);
+    };
+    el.addEventListener('touchstart', start, { passive: true });
+    el.addEventListener('touchmove', move, { passive: false });
+    el.addEventListener('touchend', end, { passive: true });
+    el.addEventListener('touchcancel', end, { passive: true });
+    return () => {
+      el.removeEventListener('touchstart', start);
+      el.removeEventListener('touchmove', move);
+      el.removeEventListener('touchend', end);
+      el.removeEventListener('touchcancel', end);
+    };
+  }, [!!t]);
+
   if (!t) return null;
   return (
-    <div
-      className={`mini ${hidden ? 'mini-hidden' : ''}`}
-      onClick={onExpand}
-      onTouchStart={(e) => {
-        if (e.target.closest('button')) return;
-        const y = e.touches[0].clientY;
-        startY.current = { y, ly: y, lt: performance.now(), v: 0 };
-      }}
-      onTouchMove={(e) => {
-        const s0 = startY.current;
-        if (!s0) return;
-        const y = e.touches[0].clientY, now = performance.now();
-        s0.v = (y - s0.ly) / Math.max(1, now - s0.lt); s0.ly = y; s0.lt = now;
-        onDrag(Math.min(0, y - s0.y));
-      }}
-      onTouchEnd={(e) => {
-        const s0 = startY.current;
-        startY.current = null;
-        if (s0) onDragEnd(e.changedTouches[0].clientY - s0.y, s0.v);
-      }}
-      onTouchCancel={() => { const s0 = startY.current; startY.current = null; if (s0) onDragEnd(s0.ly - s0.y, s0.v); }}
-    >
+    <div ref={ref} className={`mini ${hidden ? 'mini-hidden' : ''}`}>
       <div className="mini-glow" style={{ backgroundImage: t.thumb ? `url(${t.thumb})` : undefined }} />
       <MiniProgress />
       <Cover key={t.id} src={t.thumb} className={`mini-cover ${p.playing ? 'spin-in' : ''}`} />
@@ -793,7 +811,7 @@ export default function App() {
         {top?.kind === 'artist' && <ArtistView key={top.id} id={top.id} onOpen={open} />}
         {(top?.kind === 'album' || top?.kind === 'playlist') && <CollectionView key={top.id} id={top.id} kind={top.kind} onOpen={open} />}
       </main>
-      <MiniPlayer hidden={npOpen} onExpand={() => {}} onDrag={dragSheet} onDragEnd={endDragSheet} />
+      <MiniPlayer hidden={npOpen} onDrag={dragSheet} onDragEnd={endDragSheet} />
       <nav className="tabs">
         <button className={tab === 'home' ? 'on' : ''} onClick={() => switchTab('home')}>{Icon.home}<span>Główna</span></button>
         <button className={tab === 'search' ? 'on' : ''} onClick={() => switchTab('search')}>{Icon.search}<span>Szukaj</span></button>
