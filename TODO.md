@@ -23,11 +23,14 @@ Kolejność dowolna, zapisane po sesji 26.11.2026.
 ## 5. Normalniejsze logowanie
 - Zamiast wklejania cookies: okienko z logowaniem Google w apce (WebView), które samo przechwytuje cookies i je odświeża.
 
-## 6. Aktualizacje „w locie” zamiast przebudowywania
+## 6. Aktualizacje „w locie” zamiast przebudowywania — ZROBIONE (wymaga jednorazowej konfiguracji, README)
 - Apka sama pobiera nową wersję interfejsu i logiki (paczka web) i podmienia ją po restarcie — bez GitHub Actions → iloader → Importuj IPA.
 - Opcje: `@capgo/capacitor-updater` w trybie ręcznym (paczki zip z GitHub Releases, za darmo, bez serwera) albo własny mini-updater.
 - GitHub Actions przy każdym pushu buduje `dist.zip` + plik z numerem wersji; apka przy starcie sprawdza i ściąga.
 - Nadal wymaga przebudowy tylko zmiana natywna (nowa wtyczka, uprawnienia, ikona). Odświeżanie podpisu co 7 dni zostaje.
+
+## 7. Puls okładki do beatu
+- Jest wersja beta (przycisk BEAT w playerze, analiza basu przez Web Audio). Sprawdzić na telefonie, czy nie psuje grania w tle.
 
 ## Znane / odłożone
 - Przeciąganie odtwarzacza w górę z mini-paska nie działa na telefonie (w emulatorze działa). Stuknięcie otwiera — na razie zostaje.

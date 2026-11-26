@@ -1,0 +1,39 @@
+# Over-the-air update: every push to main builds the web bundle and publishes it as a GitHub Release
+# in a PUBLIC repo (the app downloads from releases/latest without auth). No IPA, no iloader.
+#
+# One-time setup (see README "Aktualizacje OTA"):
+#   - public repo for bundles (default Jarosz2137/mytubeboss-ota, override with repo variable OTA_REPO)
+#   - secret OTA_TOKEN = fine-grained token with Contents: Read and write on that repo
+#     (not needed if OTA_REPO points at this repo and this repo is public)
+name: OTA update
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      OTA_REPO: ${{ vars.OTA_REPO || 'Jarosz2137/mytubeboss-ota' }}
+      GH_TOKEN: ${{ secrets.OTA_TOKEN || github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - name: Build bundle
+        run: |
+          BUILD=$(date -u +%Y%m%d%H%M)
+          echo "BUILD=$BUILD" >> "$GITHUB_ENV"
+          VITE_BUILD=$BUILD VITE_OTA_REPO=$OTA_REPO npm run build
+          (cd dist && zip -qr ../bundle.zip .)
+          printf '{"build":%s,"url":"https://github.com/%s/releases/download/b%s/bundle.zip","commit":"%s"}\n' \
+            "$BUILD" "$OTA_REPO" "$BUILD" "$GITHUB_SHA" > version.json
+          cat version.json
+      - name: Publish release
+        run: |
+          gh release create "b$BUILD" bundle.zip version.json --repo "$OTA_REPO" \
+            --title "MyTube Boss $BUILD" --notes "Commit $GITHUB_SHA" --latest

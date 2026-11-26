@@ -58,3 +58,20 @@ i budujesz od nowa. W `src/yt.js` → `audioUrl()` jest lista klientów (`IOS`, 
 - pobieranie offline (utwory / albumy / playlisty)
 - widget na ekran główny (WidgetKit)
 - teksty piosenek (`yt.music.getLyrics` już jest w bibliotece)
+
+## Aktualizacje OTA (bez iloadera)
+
+Po wgraniu IPA z tą funkcją każda zmiana interfejsu/logiki trafia na telefon sama:
+push na `main` → workflow **OTA update** publikuje `bundle.zip` jako Release → apka przy starcie ściąga
+nową wersję w tle i pokazuje „Nowa wersja gotowa” (albo podmienia przy następnym uruchomieniu).
+Jeśli nowa wersja się wywali przy starcie, apka sama wraca do poprzedniej.
+
+Jednorazowo:
+1. Utwórz **publiczne** repo `mytubeboss-ota` (zaznacz „Add a README”, żeby nie było puste).
+2. GitHub → Settings → Developer settings → Fine-grained tokens → nowy token, dostęp tylko do `mytubeboss-ota`,
+   uprawnienie **Contents: Read and write**.
+3. W repo `mytubeboss` → Settings → Secrets and variables → Actions → New secret `OTA_TOKEN` = ten token.
+4. Zbuduj i wgraj IPA ostatni raz normalnie (workflow „Build iOS”).
+
+Alternatywa: zrób `mytubeboss` publicznym i dodaj zmienną repo `OTA_REPO=Jarosz2137/mytubeboss` (wtedy token niepotrzebny).
+Zmiany natywne (nowa wtyczka, uprawnienia, ikona) i odświeżenie podpisu co 7 dni nadal idą przez IPA + iloader.

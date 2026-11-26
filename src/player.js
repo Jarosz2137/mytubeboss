@@ -43,6 +43,7 @@ const setTime = (patch) => { timeState = { ...timeState, ...patch }; tsubs.forEa
 export const useTime = () => useSyncExternalStore((f) => { tsubs.add(f); return () => tsubs.delete(f); }, () => timeState);
 export const current = () => state.queue[state.index];
 export const videoElement = videoEl;
+export const audioElement = audioEl;
 
 let loadToken = 0;
 let lastBlobUrl = null;

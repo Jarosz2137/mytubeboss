@@ -1,5 +1,6 @@
 # Builds an unsigned .ipa in the cloud (no Mac needed).
-# Download it from the run's "Artifacts" and open it in SideStore, which signs it.
+# Download it from the run's "Artifacts" and install it with iloader (Importuj IPA).
+# Only needed for native changes; UI/logic changes ship via ota.yml.
 name: Build iOS (unsigned IPA)
 on:
   workflow_dispatch:
@@ -14,7 +15,10 @@ jobs:
         with:
           node-version: 22
       - run: npm ci
-      - run: npm run build
+      - name: Build web (stamped with build number for OTA)
+        run: VITE_BUILD=$(date -u +%Y%m%d%H%M) npm run build
+        env:
+          VITE_OTA_REPO: ${{ vars.OTA_REPO || 'Jarosz2137/mytubeboss-ota' }}
       - run: npx cap add ios
       - run: sh scripts/patch-ios.sh
       - name: Verify background audio

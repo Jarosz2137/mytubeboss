@@ -7,6 +7,8 @@ import {
   usePlayer, current, playList, addNext, jump, toggle, next, prev, seek, setMode, videoElement,
   cycleRepeat, toggleShuffle, toggleLike, useTime,
 } from './player.js';
+import { setBeat, beatOn, onBeat, setBeatTarget } from './beat.js';
+import { onOta, otaState, applyNow } from './ota.js';
 
 /* ---------------- helpers ---------------- */
 
@@ -562,6 +564,9 @@ function NowPlaying({ open, onClose, onOpen, sheetRef }) {
   const [showQueue, setShowQueue] = useState(false);
   const [slide, setSlide] = useState('');
   const g = useRef(null);
+  const [beat, setBeatState] = useState(beatOn());
+  useEffect(() => onBeat(setBeatState), []);
+  useEffect(() => { setBeatTarget(sheet.current); }, [t?.id]);
 
   // Move the single <video> engine into view when in video mode.
   useEffect(() => {
@@ -646,7 +651,7 @@ function NowPlaying({ open, onClose, onOpen, sheetRef }) {
   return (
     <div
       ref={sheet}
-      className={`np ${open ? 'open' : ''} ${p.playing ? 'is-playing' : ''}`}
+      className={`np ${open ? 'open' : ''} ${p.playing ? 'is-playing' : ''} ${beat ? 'beat-on' : ''}`}
       onTouchStart={onStart} onTouchMove={onMove} onTouchEnd={onEnd} onTouchCancel={onEnd}
     >
       <div className="np-bg" key={'bg' + t.id} style={{ backgroundImage: t.thumb ? `url(${t.thumb})` : undefined }} />
@@ -661,6 +666,7 @@ function NowPlaying({ open, onClose, onOpen, sheetRef }) {
         <div className="np-brand">
           <Wordmark size="xs" />
           <span className="boss-badge">👑 BOSS MODE · 0 reklam</span>
+          <button className={`beat-btn ${beat ? 'on' : ''}`} onClick={() => { tap(); setBeat(!beat); }} aria-label="Puls do beatu">BEAT</button>
         </div>
         <div className="np-top">
           <button className="icon-btn" onClick={onClose}>{Icon.down}</button>
@@ -687,7 +693,7 @@ function NowPlaying({ open, onClose, onOpen, sheetRef }) {
             {p.mode === 'video'
               ? <div className="np-video" ref={videoBox} />
               : (
-                <div className="np-strip">
+                <div className="np-sway"><div className="np-strip">
                   {p.queue[p.index - 1] && (
                     <div className="np-side left" key={'l' + p.queue[p.index - 1].id} onClick={() => { tap(); prev(); }}>
                       <Cover src={p.queue[p.index - 1].thumb} />
@@ -699,7 +705,7 @@ function NowPlaying({ open, onClose, onOpen, sheetRef }) {
                       <Cover src={p.queue[p.index + 1].thumb} />
                     </div>
                   )}
-                </div>
+                </div></div>
               )}
           </div>
         )}
@@ -748,6 +754,17 @@ function NowPlaying({ open, onClose, onOpen, sheetRef }) {
 }
 
 /* ---------------- app shell ---------------- */
+
+function OtaPill() {
+  const [o, setO] = useState(otaState);
+  useEffect(() => onOta(setO), []);
+  if (o.status !== 'ready') return null;
+  return (
+    <button className="ota-pill" onClick={() => { tap(); applyNow(); }}>
+      <b>Nowa wersja gotowa</b><span>Dotknij, żeby przeładować</span>
+    </button>
+  );
+}
 
 export default function App() {
   const [tab, setTab] = useState('home');
@@ -817,6 +834,7 @@ export default function App() {
         <button className={tab === 'search' ? 'on' : ''} onClick={() => switchTab('search')}>{Icon.search}<span>Szukaj</span></button>
         <button className={tab === 'library' ? 'on' : ''} onClick={() => switchTab('library')}>{Icon.lib}<span>Biblioteka</span></button>
       </nav>
+      <OtaPill />
       <NowPlaying sheetRef={sheetRef} open={npOpen} onClose={() => setNpOpen(false)} onOpen={open} />
     </div>
   );
