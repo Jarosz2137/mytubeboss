@@ -14,6 +14,34 @@ import { onOta, otaState, applyNow } from './ota.js';
 
 const tap = (style = ImpactStyle.Light) => { Haptics.impact({ style }).catch(() => {}); };
 
+// Long text scrolls like a car-radio display instead of being cut off.
+function Marquee({ text }) {
+  const box = useRef(null);
+  const inner = useRef(null);
+  const [run, setRun] = useState(0);
+  useLayoutEffect(() => {
+    const check = () => {
+      const b = box.current, i = inner.current;
+      if (!b || !i) return;
+      const w = i.scrollWidth - (parseFloat(getComputedStyle(i).paddingRight) || 0);
+      setRun(w - b.clientWidth > 2 ? Math.ceil(w) : 0);
+    };
+    check();
+    const ro = new ResizeObserver(check);
+    ro.observe(box.current);
+    return () => ro.disconnect();
+  }, [text]);
+  const dur = run ? Math.max(8, (run + 48) / 32) : 0; // ~32 px/s
+  return (
+    <span ref={box} className={`mq ${run ? 'run' : ''}`} style={run ? { '--mq-d': `${dur}s`, '--mq-w': `${run + 48}px` } : undefined}>
+      <span className="mq-track">
+        <span ref={inner} className="mq-item">{text}</span>
+        {run ? <span className="mq-item" aria-hidden="true">{text}</span> : null}
+      </span>
+    </span>
+  );
+}
+
 function Wordmark({ size = 'md' }) {
   return (
     <div className={`wm wm-${size}`} aria-label="Egzey MyTube Boss">
@@ -492,7 +520,7 @@ function MiniPlayer({ hidden, onDrag, onDragEnd }) {
       <MiniProgress />
       <Cover key={t.id} src={t.thumb} className={`mini-cover ${p.playing ? 'spin-in' : ''}`} />
       <div className="mini-text" key={'t' + t.id}>
-        <div className="mini-title">{t.title}</div>
+        <div className="mini-title"><Marquee text={t.title} /></div>
         <div className="mini-sub">{p.error ? p.error : t.subtitle}</div>
       </div>
       <button className="icon-btn pop" key={p.playing ? 'pa' : 'pl'} onClick={(e) => { e.stopPropagation(); tap(); toggle(); }}>{p.loading ? <span className="spin" /> : p.playing ? Icon.pause : Icon.play}</button>
@@ -722,11 +750,11 @@ function NowPlaying({ open, onClose, onOpen, sheetRef }) {
         </div>
         <div className="np-info">
           <div className="np-meta" key={'m' + t.id}>
-            <div className="np-title">{t.title}</div>
+            <div className="np-title"><Marquee text={t.title} /></div>
             <div
               className={`np-artist ${t.artistId ? 'link' : ''}`}
               onClick={() => { if (t.artistId) { onClose(); onOpen({ type: 'artist', id: t.artistId }); } }}
-            >{t.subtitle}</div>
+            ><Marquee text={t.subtitle} /></div>
           </div>
           <button className={`icon-btn like ${liked ? 'on' : ''}`} onClick={() => { tap(ImpactStyle.Medium); toggleLike(t); }}>{liked ? Icon.heart : Icon.heartO}</button>
         </div>

@@ -521,3 +521,13 @@ h2 { font-size: 21px; font-weight: 700; margin: 26px 0 10px; letter-spacing: -0.
   background: linear-gradient(135deg, #ff5e8a, #b44dff); color: #fff; border: 0; box-shadow: 0 10px 30px rgba(0,0,0,.5);
   animation: miniIn .5s cubic-bezier(.2,1.2,.3,1) both; font-family: inherit; }
 .ota-pill b { font-size: 14px; } .ota-pill span { font-size: 12px; opacity: .85; }
+
+/* ===== marquee for long titles ===== */
+.np-title, .np-artist, .mini-title { text-overflow: clip; }
+.mq { display: block; overflow: hidden; white-space: nowrap; }
+.mq-track { display: inline-flex; }
+.mq-item { flex: none; }
+.mq.run { -webkit-mask: linear-gradient(90deg, #000 calc(100% - 24px), transparent); mask: linear-gradient(90deg, #000 calc(100% - 24px), transparent); }
+.mq.run .mq-item { padding-right: 48px; }
+.mq.run .mq-track { animation: mq var(--mq-d) linear 1.8s infinite; will-change: transform; }
+@keyframes mq { 0%, 12% { transform: translateX(0); } 100% { transform: translateX(calc(-1 * var(--mq-w))); } }
