@@ -578,7 +578,15 @@ export async function audioBlobUrl(id) {
 // Downloads the audio track (AAC/mp4) and plays it from memory.
 const SABR_CLIENTS = { MWEB: { id: 2, version: '2.20260205.04.01' }, WEB: { id: 1, version: null } };
 
-export async function sabrAudioBlobUrl(id, onProgress, client = 'MWEB') {
+export async function sabrAudioBlobUrl(id, onProgress, client = 'WEB') {
+  const r = await sabrAudioChunks(id, { onProgress }, client);
+  const blob = new Blob(r.parts, { type: r.mime.split(';')[0] });
+  if (blob.size < 10000) throw new Error('SABR: za mały plik (' + blob.size + ' B)');
+  return URL.createObjectURL(blob);
+}
+
+// Streams the audio track; calls onMeta once (full mime + duration) and onChunk per piece.
+export async function sabrAudioChunks(id, { onMeta, onChunk, onProgress } = {}, client = 'WEB') {
   const { yt, minter, po_token, fetchFn, binding } = await getPlayYT();
   const loadInfo = async () => {
     const info = await yt.getBasicInfo(id, await opts(minter, id, { client }));
@@ -627,6 +635,9 @@ export async function sabrAudioBlobUrl(id, onProgress, client = 'MWEB') {
     audioPreferences: { container: 'mp4', preferredAudioCodec: 'aac', quality: 'AUDIO_QUALITY_MEDIUM' },
     isPostLiveDvr: false,
   });
+  const fmt = selectedFormats?.audioFormat;
+  const meta = { mime: fmt?.mimeType || 'audio/mp4; codecs="mp4a.40.2"', durationMs: Number(fmt?.approxDurationMs) || 0 };
+  onMeta?.(meta);
   // Drain the (empty) video track so backpressure never stalls the session.
   if (videoStream) {
     (async () => { const r = videoStream.getReader(); for (;;) { const { done } = await r.read(); if (done) break; } })().catch(() => {});
@@ -651,6 +662,7 @@ export async function sabrAudioBlobUrl(id, onProgress, client = 'MWEB') {
       const { done, value } = res;
       if (done) break;
       parts.push(value);
+      onChunk?.(value);
       bytes += value.byteLength;
       lastChunk = Date.now();
       onProgress?.(bytes);
@@ -660,10 +672,7 @@ export async function sabrAudioBlobUrl(id, onProgress, client = 'MWEB') {
   }
   if (sabrErr) throw new Error('SABR: ' + (sabrErr.message || sabrErr) + ' po ' + Math.round(bytes / 1024) + ' KB (sps ' + sps + ')');
   if (Date.now() - lastChunk > 25000) throw new Error('SABR: stanął po ' + Math.round(bytes / 1024) + ' KB (sps ' + sps + ')');
-  const mime = (selectedFormats?.audioFormat?.mimeType || 'audio/mp4').split(';')[0];
-  const blob = new Blob(parts, { type: mime });
-  if (blob.size < 10000) throw new Error('SABR: za mały plik (' + blob.size + ' B)');
-  return URL.createObjectURL(blob);
+  return { ...meta, parts, bytes };
 }
 
 // Image bytes as a same-origin blob URL (so a canvas can read the pixels).

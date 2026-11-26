@@ -1,7 +1,7 @@
 // Playback engine: one <video> element for both audio and music videos,
 // a queue, autoplay radio, and lock-screen / Dynamic Island metadata.
 import { useSyncExternalStore } from 'react';
-import { streamUrl, audioBlobUrl, sabrAudioBlobUrl, hlsUrl, counterpartId, CLIENTS, upNext } from './yt.js';
+import { streamUrl, audioBlobUrl, sabrAudioChunks, hlsUrl, counterpartId, CLIENTS, upNext } from './yt.js';
 import * as ytmod from './yt.js';
 
 // iOS pauses <video> when the app goes to the background, but keeps <audio> playing.
@@ -47,24 +47,66 @@ export const videoElement = videoEl;
 let loadToken = 0;
 let lastBlobUrl = null;
 
-// Ready-to-play audio for upcoming tracks (SABR downloads take a few seconds).
-const ready = new Map(); // videoId -> blob URL
+// Ready-to-play audio for upcoming tracks: { mime, durationMs, parts }.
+const ready = new Map();
 let prefetching = null;
 async function prefetchNext() {
   const nextTrack = state.queue[state.index + 1];
   if (!nextTrack || ready.has(nextTrack.id) || prefetching === nextTrack.id) return;
   prefetching = nextTrack.id;
   try {
-    const u = await sabrAudioBlobUrl(nextTrack.id, null, 'WEB');
-    ready.set(nextTrack.id, u);
-    // keep memory in check
-    while (ready.size > 3) { const [k, v] = ready.entries().next().value; URL.revokeObjectURL(v); ready.delete(k); }
+    const r = await sabrAudioChunks(nextTrack.id, {}, 'WEB');
+    ready.set(nextTrack.id, r);
+    while (ready.size > 3) ready.delete(ready.keys().next().value);
     console.info('[prefetch] ready', nextTrack.title);
   } catch (e) {
     console.warn('[prefetch] failed', e?.message);
   } finally {
     prefetching = null;
   }
+}
+
+const MSClass = () => window.ManagedMediaSource || window.MediaSource || null;
+
+// Feeds SABR chunks into (Managed)MediaSource: playback starts after the first
+// few seconds arrive, duration is exact and seeking works.
+function makeMse(meta, startAt, token) {
+  const MS = MSClass();
+  if (!MS || (MS.isTypeSupported && !MS.isTypeSupported(meta.mime))) return null;
+  const ms = new MS();
+  const queue = [];
+  let sb = null, ended = false, first = true;
+  try { el.disableRemotePlayback = true; } catch { /* */ }
+  el.removeAttribute('src');
+  if (MS !== window.MediaSource && 'srcObject' in el) {
+    try { el.srcObject = ms; } catch { el.src = URL.createObjectURL(ms); }
+  } else {
+    el.src = URL.createObjectURL(ms);
+  }
+  const pump = () => {
+    if (!sb || sb.updating) return;
+    if (queue.length) { try { sb.appendBuffer(queue.shift()); } catch (e) { console.warn('[mse] append failed', e?.message); } return; }
+    if (ended && ms.readyState === 'open') { try { ms.endOfStream(); } catch { /* */ } }
+  };
+  ms.addEventListener('sourceopen', () => {
+    try { sb = ms.addSourceBuffer(meta.mime); } catch (e) { console.warn('[mse] addSourceBuffer', e?.message); return; }
+    if (meta.durationMs) { try { ms.duration = meta.durationMs / 1000; } catch { /* */ } }
+    sb.addEventListener('updateend', () => {
+      if (first) {
+        first = false;
+        if (startAt) { try { el.currentTime = startAt; } catch { /* */ } }
+        if (token === loadToken) el.play().catch(() => {});
+      }
+      pump();
+    });
+    pump();
+  }, { once: true });
+  console.info('[mse] using', MS === window.MediaSource ? 'MediaSource' : 'ManagedMediaSource');
+  return { push(c) { queue.push(c); pump(); }, end() { ended = true; pump(); } };
+}
+
+function blobOf(r) {
+  return URL.createObjectURL(new Blob(r.parts, { type: r.mime.split(';')[0] }));
 }
 
 // Resolves true once the element actually starts, false on error/timeout.
@@ -84,6 +126,7 @@ function tryPlay(url, startAt, token) {
     const t = setTimeout(() => finish(false), 15000);
     el.addEventListener('playing', onOk);
     el.addEventListener('error', onErr);
+    try { el.srcObject = null; } catch { /* */ }
     el.src = url;
     if (startAt) el.addEventListener('loadedmetadata', () => { el.currentTime = startAt; }, { once: true });
     el.play().catch(() => {});
@@ -101,82 +144,74 @@ async function load(startAt = 0) {
   setTime({ time: startAt, duration: track.duration || 0 });
   updateMediaSession();
   suppressErrors = true;
+  const done = () => { suppressErrors = false; set({ error: '' }); prefetchNext(); };
 
-  // Already downloaded in the background?
-  if (ready.has(track.id)) {
-    const u = ready.get(track.id);
-    ready.delete(track.id);
-    if (lastBlobUrl) URL.revokeObjectURL(lastBlobUrl);
-    lastBlobUrl = u;
-    if (await tryPlay(u, startAt, token)) { suppressErrors = false; set({ error: '' }); prefetchNext(); return; }
+  if (mode === 'audio') {
+    // 1) already downloaded in the background
+    const pre = ready.get(track.id);
+    if (pre) {
+      ready.delete(track.id);
+      if (pre.durationMs) setTime({ duration: pre.durationMs / 1000 });
+      const ctl = makeMse(pre, startAt, token);
+      if (ctl) { pre.parts.forEach((c) => ctl.push(c)); ctl.end(); done(); return; }
+      if (await tryPlay(blobOf(pre), startAt, token)) { done(); return; }
+    }
+    // 2) SABR streamed into MediaSource (starts after a few seconds of audio)
+    for (const sc of ['WEB', 'MWEB']) {
+      let ctl = null;
+      try {
+        const r = await sabrAudioChunks(track.id, {
+          onMeta: (m) => {
+            if (token !== loadToken) return;
+            if (m.durationMs) setTime({ duration: m.durationMs / 1000 });
+            ctl = makeMse(m, startAt, token);
+          },
+          onChunk: (c) => { if (token === loadToken) ctl?.push(c); },
+          onProgress: (b) => { if (token === loadToken && !state.playing) set({ error: 'Ładuję utwór… ' + (b / 1048576).toFixed(1) + ' MB' }); },
+        }, sc);
+        if (token !== loadToken) return;
+        if (ctl) { ctl.end(); done(); return; }
+        if (await tryPlay(blobOf(r), startAt, token)) { done(); return; }
+        log.push('SABR ' + sc + ': media ' + (el.error?.code ?? 'timeout'));
+      } catch (e) {
+        if (token !== loadToken) return;
+        if (state.playing) { ctl?.end(); suppressErrors = false; set({ error: 'Utwór urwał się w trakcie pobierania' }); return; }
+        log.push(String(e?.message || e).slice(0, 120));
+      }
+    }
   }
 
-  // Fastest path that works today: the iOS client's HLS stream (Safari plays it natively).
-  // In "Utwór" mode the picture just isn't shown.
+  // 3) HLS (music videos, or the linked video of an album track)
   try {
     const hls = await hlsUrl(track.id);
     if (token !== loadToken) return;
-    if (await tryPlay(hls, startAt, token)) { suppressErrors = false; set({ error: '' }); prefetchNext(); return; }
+    if (await tryPlay(hls, startAt, token)) { done(); return; }
     log.push('HLS: media ' + (el.error?.code ?? 'timeout'));
   } catch (e) {
     log.push('HLS: ' + String(e?.message || e).slice(0, 80));
   }
-
-  // Album track without HLS -> play its linked music video's HLS (same song).
   try {
     const cid = await counterpartId(track.id);
     if (token !== loadToken) return;
     if (cid) {
       const hls = await hlsUrl(cid);
-      if (await tryPlay(hls, startAt, token)) { suppressErrors = false; set({ error: '' }); prefetchNext(); return; }
+      if (await tryPlay(hls, startAt, token)) { done(); return; }
       log.push('HLS teledysku: media ' + (el.error?.code ?? 'timeout'));
     } else log.push('brak teledysku');
   } catch (e) {
     log.push('HLS teledysku: ' + String(e?.message || e).slice(0, 80));
   }
 
-  // Audio fallback: SABR (the path YouTube's own web player uses).
-  if (mode === 'audio') {
-    for (const sc of ['WEB', 'MWEB']) {
-      try {
-        set({ error: 'Ładuję utwór…' });
-        const u = await sabrAudioBlobUrl(track.id, (b) => { if (token === loadToken) set({ error: 'Ładuję utwór (' + sc + ')… ' + (b / 1048576).toFixed(1) + ' MB' }); }, sc);
-        if (token !== loadToken) return;
-        if (lastBlobUrl) URL.revokeObjectURL(lastBlobUrl);
-        lastBlobUrl = u;
-        if (await tryPlay(u, startAt, token)) { suppressErrors = false; set({ error: '' }); prefetchNext(); return; }
-        log.push('SABR ' + sc + ': media ' + (el.error?.code ?? 'timeout'));
-      } catch (e) {
-        log.push(String(e?.message || e).slice(0, 120));
-      }
-    }
-    set({ error: '' });
-  }
-
+  // 4) direct URLs (rarely work nowadays)
   for (const client of CLIENTS) {
     if (token !== loadToken) return;
     try {
       const url = await streamUrl(track.id, mode, client);
       if (!url) { log.push(client + ': brak'); continue; }
-      if (await tryPlay(url, startAt, token)) { suppressErrors = false; return; }
+      if (await tryPlay(url, startAt, token)) { done(); return; }
       log.push(client + ': media ' + (el.error?.code ?? 'timeout'));
     } catch (e) {
       log.push(client + ': ' + String(e?.message || e).slice(0, 60));
-    }
-  }
-
-  // Last resort for audio: download through native HTTP and play from memory.
-  if (mode === 'audio' && token === loadToken) {
-    try {
-      set({ error: 'Ładuję utwór w całości…' });
-      const blobUrl = await audioBlobUrl(track.id);
-      if (token !== loadToken) return;
-      if (lastBlobUrl) URL.revokeObjectURL(lastBlobUrl);
-      lastBlobUrl = blobUrl;
-      if (await tryPlay(blobUrl, startAt, token)) { suppressErrors = false; set({ error: '' }); return; }
-      log.push('blob: media ' + (el.error?.code ?? 'timeout'));
-    } catch (e) {
-      log.push('blob: ' + String(e?.message || e).slice(0, 80));
     }
   }
 
@@ -268,7 +303,7 @@ on('pause', () => set({ playing: false }));
 on('waiting', () => set({ loading: true }));
 on('canplay', () => set({ loading: false }));
 on('timeupdate', () => {
-  setTime({ time: el.currentTime, duration: Number.isFinite(el.duration) ? el.duration : timeState.duration });
+  setTime({ time: el.currentTime, duration: Number.isFinite(el.duration) && el.duration > 0 ? el.duration : timeState.duration });
   updatePosition();
 });
 on('ended', () => next(true));
