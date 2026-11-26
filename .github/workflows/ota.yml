@@ -18,13 +18,27 @@ jobs:
     env:
       OTA_REPO: ${{ vars.OTA_REPO || 'Jarosz2137/mytubeboss-ota' }}
       GH_TOKEN: ${{ secrets.OTA_TOKEN || github.token }}
+      HAS_TOKEN: ${{ secrets.OTA_TOKEN != '' }}
     steps:
+      - name: Check OTA setup
+        id: cfg
+        run: |
+          if [ "$HAS_TOKEN" = "true" ] || [ "$OTA_REPO" = "$GITHUB_REPOSITORY" ]; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::OTA not set up yet (no OTA_TOKEN secret) - skipping. See README 'Aktualizacje OTA'."
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          fi
       - uses: actions/checkout@v4
+        if: steps.cfg.outputs.ok == 'true'
       - uses: actions/setup-node@v4
+        if: steps.cfg.outputs.ok == 'true'
         with:
           node-version: 22
       - run: npm ci
+        if: steps.cfg.outputs.ok == 'true'
       - name: Build bundle
+        if: steps.cfg.outputs.ok == 'true'
         run: |
           BUILD=$(date -u +%Y%m%d%H%M)
           echo "BUILD=$BUILD" >> "$GITHUB_ENV"
@@ -34,6 +48,7 @@ jobs:
             "$BUILD" "$OTA_REPO" "$BUILD" "$GITHUB_SHA" > version.json
           cat version.json
       - name: Publish release
+        if: steps.cfg.outputs.ok == 'true'
         run: |
           gh release create "b$BUILD" bundle.zip version.json --repo "$OTA_REPO" \
             --title "MyTube Boss $BUILD" --notes "Commit $GITHUB_SHA" --latest
