@@ -366,7 +366,7 @@ function getPlayYT() {
         poStatus = 'ok';
         return { yt, minter };
       } catch (e) {
-        poStatus = 'błąd: ' + String(e?.message || e).slice(0, 60);
+        poStatus = 'błąd: ' + String(e?.message || e).slice(0, 220);
         console.warn('PO token failed', e);
         return { yt: anon, minter: null };
       }
