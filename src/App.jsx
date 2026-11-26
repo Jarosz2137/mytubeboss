@@ -5,6 +5,7 @@ import { useCoverColors } from './colors.js';
 import { getLogs, clearLogs } from './debuglog.js';
 import {
   usePlayer, current, playList, addNext, jump, toggle, next, prev, seek, setMode, videoElement,
+  cycleRepeat, toggleShuffle, toggleLike,
 } from './player.js';
 
 /* ---------------- helpers ---------------- */
@@ -86,6 +87,10 @@ const Icon = {
   search: <svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" strokeWidth="2.4" /><path d="m15.5 15.5 5 5" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" /></svg>,
   lib: <svg viewBox="0 0 24 24"><rect x="3" y="4" width="3.5" height="16" rx="1" /><rect x="8.5" y="4" width="3.5" height="16" rx="1" /><path d="m14.5 5.2 3.4-.9 3.6 15.4-3.4.8z" /></svg>,
   queue: <svg viewBox="0 0 24 24"><path d="M4 6h12M4 11h12M4 16h8" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" fill="none" /><path d="M17 14v7l5-3.5z" /></svg>,
+  heart: <svg viewBox="0 0 24 24"><path d="M12 20.5s-7.5-4.6-9.3-9.2C1.4 7.8 3.6 4.5 7 4.5c2 0 3.6 1.1 5 3 1.4-1.9 3-3 5-3 3.4 0 5.6 3.3 4.3 6.8-1.8 4.6-9.3 9.2-9.3 9.2Z" /></svg>,
+  heartO: <svg viewBox="0 0 24 24"><path d="M12 20.5s-7.5-4.6-9.3-9.2C1.4 7.8 3.6 4.5 7 4.5c2 0 3.6 1.1 5 3 1.4-1.9 3-3 5-3 3.4 0 5.6 3.3 4.3 6.8-1.8 4.6-9.3 9.2-9.3 9.2Z" fill="none" stroke="currentColor" strokeWidth="2" /></svg>,
+  shuffle: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 7h3.5c2 0 3.2 1 4.3 2.7l2.4 4.6C14.3 16 15.5 17 17.5 17H21M17.5 4 21 7l-3.5 3M3 17h3.5c1.4 0 2.4-.5 3.2-1.3M13.3 8.3C14.1 7.5 15.1 7 16.5 7H21M17.5 14l3.5 3-3.5 3" /></svg>,
+  repeat: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 2.5 20.5 6 17 9.5" /><path d="M3.5 11.5V10a4 4 0 0 1 4-4h13M7 21.5 3.5 18 7 14.5" /><path d="M20.5 12.5V14a4 4 0 0 1-4 4h-13" /></svg>,
   plus: <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" /></svg>,
 };
 
@@ -113,7 +118,7 @@ function TrackRow({ t, list, i, onOpen, showCover = true, index }) {
   const cur = current();
   const active = cur && cur.id === t.id;
   return (
-    <div className={`row ${active ? 'active' : ''}`} onClick={() => { tap(); playList(list, i); }}>
+    <div className={`row stagger ${active ? 'active' : ''}`} style={{ '--i': Math.min(i, 14) }} onClick={() => { tap(); playList(list, i); }}>
       {showCover ? <Cover src={t.thumb} className="row-cover" /> : <div className="row-index">{index ?? i + 1}</div>}
       <div className="row-text">
         <div className="row-title">{t.title}</div>
@@ -131,10 +136,10 @@ function TrackRow({ t, list, i, onOpen, showCover = true, index }) {
   );
 }
 
-function Card({ item, onOpen }) {
+function Card({ item, onOpen, i = 0 }) {
   const kind = kindOf(item);
   return (
-    <div className="card" onClick={() => onOpen(item)}>
+    <div className="card stagger" style={{ '--i': Math.min(i, 10) }} onClick={() => { tap(); onOpen(item); }}>
       <Cover src={item.thumb} round={kind === 'artist'} />
       <div className="card-title">{item.title}</div>
       <div className="card-sub">{kind === 'artist' ? 'Wykonawca' : item.subtitle}</div>
@@ -154,7 +159,7 @@ function Section({ s, onOpen }) {
         </div>
       ) : (
         <div className="shelf">
-          {s.items.map((it, i) => <Card key={(it.id || '') + i} item={it} onOpen={(x) => (yt.isPlayable(x) ? playList([x], 0) : onOpen(x))} />)}
+          {s.items.map((it, i) => <Card key={(it.id || '') + i} i={i} item={it} onOpen={(x) => (yt.isPlayable(x) ? playList([x], 0) : onOpen(x))} />)}
         </div>
       )}
     </section>
@@ -330,20 +335,28 @@ function CollectionView({ id, kind, onOpen }) {
 
 /* ---------------- player UI ---------------- */
 
-function MiniPlayer({ onExpand }) {
+function MiniPlayer({ onExpand, hidden }) {
   const p = usePlayer();
   const t = current();
+  const startY = useRef(null);
   if (!t) return null;
   const pct = p.duration ? (p.time / p.duration) * 100 : 0;
   return (
-    <div className="mini" onClick={onExpand}>
+    <div
+      className={`mini ${hidden ? 'mini-hidden' : ''}`}
+      onClick={onExpand}
+      onTouchStart={(e) => { startY.current = e.touches[0].clientY; }}
+      onTouchMove={(e) => { if (startY.current != null && startY.current - e.touches[0].clientY > 25) { startY.current = null; onExpand(); } }}
+      onTouchEnd={() => { startY.current = null; }}
+    >
+      <div className="mini-glow" style={{ backgroundImage: t.thumb ? `url(${t.thumb})` : undefined }} />
       <div className="mini-progress" style={{ width: pct + '%' }} />
-      <Cover src={t.thumb} className="mini-cover" />
-      <div className="mini-text">
+      <Cover key={t.id} src={t.thumb} className={`mini-cover ${p.playing ? 'spin-in' : ''}`} />
+      <div className="mini-text" key={'t' + t.id}>
         <div className="mini-title">{t.title}</div>
         <div className="mini-sub">{p.error ? p.error : t.subtitle}</div>
       </div>
-      <button className="icon-btn" onClick={(e) => { e.stopPropagation(); tap(); toggle(); }}>{p.loading ? <span className="spin" /> : p.playing ? Icon.pause : Icon.play}</button>
+      <button className="icon-btn pop" key={p.playing ? 'pa' : 'pl'} onClick={(e) => { e.stopPropagation(); tap(); toggle(); }}>{p.loading ? <span className="spin" /> : p.playing ? Icon.pause : Icon.play}</button>
       <button className="icon-btn" onClick={(e) => { e.stopPropagation(); tap(); next(); }}>{Icon.next}</button>
     </div>
   );
@@ -372,8 +385,10 @@ function NowPlaying({ open, onClose, onOpen }) {
   const p = usePlayer();
   const t = current();
   const videoBox = useRef();
+  const sheet = useRef();
   const [showQueue, setShowQueue] = useState(false);
-  const touch = useRef(null);
+  const [slide, setSlide] = useState('');
+  const g = useRef(null);
 
   // Move the single <video> engine into view when in video mode.
   useEffect(() => {
@@ -382,69 +397,122 @@ function NowPlaying({ open, onClose, onOpen }) {
     else if (holder && videoElement.parentElement !== holder) holder.appendChild(videoElement);
   }, [open, p.mode]);
 
-  const onTouchStart = (e) => { touch.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }; };
-  const onTouchEnd = (e) => {
-    if (!touch.current) return;
-    const dx = e.changedTouches[0].clientX - touch.current.x;
-    const dy = e.changedTouches[0].clientY - touch.current.y;
-    if (dy > 110 && Math.abs(dx) < 80) onClose();
-    else if (Math.abs(dx) > 90 && Math.abs(dy) < 60) (dx < 0 ? next() : prev());
-    touch.current = null;
+  // Interactive drag: down = shrink into the mini player, sideways on the cover = skip.
+  const setT = (dy, animate) => {
+    const el = sheet.current;
+    if (!el) return;
+    const h = window.innerHeight;
+    const k = Math.min(1, Math.max(0, dy / h));
+    el.style.transition = animate ? '' : 'none';
+    el.style.transform = dy ? `translateY(${dy}px) scale(${1 - k * 0.12})` : '';
+    el.style.borderRadius = dy ? `${Math.min(40, 12 + k * 80)}px` : '';
+    el.style.opacity = dy ? String(1 - k * 0.5) : '';
+  };
+  const onStart = (e) => {
+    if (e.target.closest('.scrub, button, .np-queue, input')) return;
+    const tt = e.touches[0];
+    g.current = { x: tt.clientX, y: tt.clientY, axis: null, onArt: !!e.target.closest('.np-art') };
+  };
+  const onMove = (e) => {
+    const s0 = g.current;
+    if (!s0) return;
+    const tt = e.touches[0];
+    const dx = tt.clientX - s0.x, dy = tt.clientY - s0.y;
+    if (!s0.axis) {
+      if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+      s0.axis = Math.abs(dy) > Math.abs(dx) ? 'y' : 'x';
+    }
+    if (s0.axis === 'y' && dy > 0) setT(dy, false);
+    if (s0.axis === 'x' && s0.onArt) { s0.dx = dx; const art = sheet.current.querySelector('.np-cover, .np-video'); if (art) { art.style.transition = 'none'; art.style.transform = `translateX(${dx}px) rotate(${dx / 40}deg)`; } }
+  };
+  const onEnd = (e) => {
+    const s0 = g.current;
+    g.current = null;
+    if (!s0) return;
+    const tt = e.changedTouches[0];
+    const dy = tt.clientY - s0.y;
+    if (s0.axis === 'y') {
+      setT(0, true);
+      if (dy > 120) { tap(); onClose(); }
+    }
+    if (s0.axis === 'x') {
+      const art = sheet.current.querySelector('.np-cover, .np-video');
+      if (art) { art.style.transition = ''; art.style.transform = ''; }
+      if (s0.onArt && Math.abs(s0.dx || 0) > 80) {
+        tap();
+        setSlide(s0.dx < 0 ? 'from-right' : 'from-left');
+        s0.dx < 0 ? next() : prev();
+      }
+    }
   };
 
   if (!t) return null;
+  const liked = !!p.liked[t.id];
   return (
-    <div className={`np ${open ? 'open' : ''} ${p.playing ? 'is-playing' : ''}`}>
-      <div className="np-bg" style={{ backgroundImage: t.thumb ? `url(${t.thumb})` : undefined }} />
+    <div
+      ref={sheet}
+      className={`np ${open ? 'open' : ''} ${p.playing ? 'is-playing' : ''}`}
+      onTouchStart={onStart} onTouchMove={onMove} onTouchEnd={onEnd}
+    >
+      <div className="np-bg" key={'bg' + t.id} style={{ backgroundImage: t.thumb ? `url(${t.thumb})` : undefined }} />
       <div className="np-blobs"><i className="b1" /><i className="b2" /><i className="b3" /></div>
       <div className="np-grain" />
       <div className="np-inner">
+        <div className="np-grabber" />
         <div className="np-top">
           <button className="icon-btn" onClick={onClose}>{Icon.down}</button>
-          <div className="seg">
+          <div className={`seg ${p.mode}`}>
+            <span className="seg-pill" />
             <button className={p.mode === 'audio' ? 'on' : ''} onClick={() => { tap(); setMode('audio'); }}>Utwór</button>
             <button className={p.mode === 'video' ? 'on' : ''} onClick={() => { tap(); setMode('video'); }}>Teledysk</button>
           </div>
-          <button className={`icon-btn ${showQueue ? 'lit' : ''}`} onClick={() => setShowQueue((x) => !x)}>{Icon.queue}</button>
+          <button className={`icon-btn ${showQueue ? 'lit' : ''}`} onClick={() => { tap(); setShowQueue((x) => !x); }}>{Icon.queue}</button>
         </div>
 
         {showQueue ? (
           <div className="np-queue">
             <h3>Kolejka</h3>
             {p.queue.map((q, i) => (
-              <div key={q.id + i} className={`row ${i === p.index ? 'active' : ''} ${i < p.index ? 'past' : ''}`} onClick={() => jump(i)}>
+              <div key={q.id + i} style={{ '--i': Math.min(i, 20) }} className={`row stagger ${i === p.index ? 'active' : ''} ${i < p.index ? 'past' : ''}`} onClick={() => { tap(); jump(i); }}>
                 <Cover src={q.thumb} className="row-cover" />
                 <div className="row-text"><div className="row-title">{q.title}</div><div className="row-sub">{q.subtitle}</div></div>
               </div>
             ))}
           </div>
         ) : (
-          <div className="np-art" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+          <div className="np-art">
             {p.mode === 'video'
               ? <div className="np-video" ref={videoBox} />
-              : <Cover src={t.thumb} className={`np-cover ${p.playing ? 'big' : ''}`} />}
+              : <Cover key={t.id} src={t.thumb} className={`np-cover ${p.playing ? 'big' : ''} ${slide}`} />}
           </div>
         )}
 
         <div className="np-info">
-          <div className="np-title">{t.title}</div>
-          <div
-            className={`np-artist ${t.artistId ? 'link' : ''}`}
-            onClick={() => { if (t.artistId) { onClose(); onOpen({ type: 'artist', id: t.artistId }); } }}
-          >{t.subtitle}</div>
-          {p.error && <div className="np-error">{p.error}</div>}
-          {p.error && (
-            <div className="dbg">
-              <button onClick={() => { navigator.clipboard?.writeText(getLogs()).then(() => alert('Skopiowane — wklej Claude')).catch(() => {}); }}>Kopiuj logi</button>
-              <button onClick={() => clearLogs()}>Wyczyść</button>
-            </div>
-          )}
+          <div className="np-meta" key={'m' + t.id}>
+            <div className="np-title">{t.title}</div>
+            <div
+              className={`np-artist ${t.artistId ? 'link' : ''}`}
+              onClick={() => { if (t.artistId) { onClose(); onOpen({ type: 'artist', id: t.artistId }); } }}
+            >{t.subtitle}</div>
+          </div>
+          <button className={`icon-btn like ${liked ? 'on' : ''}`} onClick={() => { tap(ImpactStyle.Medium); toggleLike(t); }}>{liked ? Icon.heart : Icon.heartO}</button>
         </div>
+        {p.error && <div className="np-error">{p.error}</div>}
+        {p.error && (
+          <div className="dbg">
+            <button onClick={() => { navigator.clipboard?.writeText(getLogs()).then(() => alert('Skopiowane — wklej Claude')).catch(() => {}); }}>Kopiuj logi</button>
+            <button onClick={() => clearLogs()}>Wyczyść</button>
+          </div>
+        )}
         <Scrubber />
         <div className="np-controls">
-          <button className="icon-btn large" onClick={() => { tap(); prev(); }}>{Icon.prev}</button>
-          <button className="icon-btn huge" onClick={() => { tap(ImpactStyle.Medium); toggle(); }}>{p.loading ? <span className="spin big" /> : p.playing ? Icon.pause : Icon.play}</button>
-          <button className="icon-btn large" onClick={() => { tap(); next(); }}>{Icon.next}</button>
+          <button className={`icon-btn small-ctl ${p.shuffle ? 'lit' : ''}`} onClick={() => { tap(); toggleShuffle(); }}>{Icon.shuffle}</button>
+          <button className="icon-btn large" onClick={() => { tap(); setSlide('from-left'); prev(); }}>{Icon.prev}</button>
+          <button className="icon-btn huge pop" key={p.playing ? 'pa' : 'pl'} onClick={() => { tap(ImpactStyle.Medium); toggle(); }}>{p.loading ? <span className="spin big" /> : p.playing ? Icon.pause : Icon.play}</button>
+          <button className="icon-btn large" onClick={() => { tap(); setSlide('from-right'); next(); }}>{Icon.next}</button>
+          <button className={`icon-btn small-ctl ${p.repeat !== 'off' ? 'lit' : ''}`} onClick={() => { tap(); cycleRepeat(); }}>
+            {Icon.repeat}{p.repeat === 'one' && <b className="rep1">1</b>}
+          </button>
         </div>
       </div>
     </div>
@@ -477,7 +545,12 @@ export default function App() {
     <div className="app" style={vars}>
       <Splash />
       <div id="engine-holder" className="engine-holder" />
-      <main ref={scroller} className="scroller">
+      <main ref={scroller} className="scroller" onScroll={(e) => {
+        const y = e.currentTarget.scrollTop;
+        e.currentTarget.style.setProperty('--sy', String(y));
+        e.currentTarget.parentElement.classList.toggle('scrolled', y > 40);
+      }}>
+        <div className="topbar" />
         {top && <button className="back" onClick={back}>{Icon.back}</button>}
         <div style={{ display: top ? 'none' : 'block' }}>
           <div style={{ display: tab === 'home' ? 'block' : 'none' }}><HomeView onOpen={open} /></div>
@@ -487,7 +560,7 @@ export default function App() {
         {top?.kind === 'artist' && <ArtistView key={top.id} id={top.id} onOpen={open} />}
         {(top?.kind === 'album' || top?.kind === 'playlist') && <CollectionView key={top.id} id={top.id} kind={top.kind} onOpen={open} />}
       </main>
-      <MiniPlayer onExpand={() => setNpOpen(true)} />
+      <MiniPlayer hidden={npOpen} onExpand={() => { tap(); setNpOpen(true); }} />
       <nav className="tabs">
         <button className={tab === 'home' ? 'on' : ''} onClick={() => switchTab('home')}>{Icon.home}<span>Główna</span></button>
         <button className={tab === 'search' ? 'on' : ''} onClick={() => switchTab('search')}>{Icon.search}<span>Szukaj</span></button>

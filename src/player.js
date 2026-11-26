@@ -22,6 +22,9 @@ let state = {
   playing: false,
   loading: false,
   mode: 'audio', // 'audio' | 'video'
+  repeat: 'off', // 'off' | 'all' | 'one'
+  shuffle: false,
+  liked: {},
   time: 0,
   duration: 0,
   error: '',
@@ -206,8 +209,10 @@ export function toggle() {
   else el.pause();
 }
 
-export async function next() {
+export async function next(auto = false) {
+  if (auto && state.repeat === 'one') { el.currentTime = 0; el.play().catch(() => {}); return; }
   if (state.index < state.queue.length - 1) return jump(state.index + 1);
+  if (state.repeat === 'all' && state.queue.length) return jump(0);
   // End of queue -> radio from the current track.
   const t = current();
   if (!t) return;
@@ -259,7 +264,7 @@ on('timeupdate', () => {
   set({ time: el.currentTime, duration: Number.isFinite(el.duration) ? el.duration : state.duration });
   updatePosition();
 });
-on('ended', () => next());
+on('ended', () => next(true));
 on('error', () => {
   if (!el.src || suppressErrors) return;
   set({ loading: false, playing: false, error: 'Stream się wysypał. Spróbuj ponownie albo pomiń.' });
@@ -298,4 +303,28 @@ if ('mediaSession' in navigator) {
   h('seekto', (d) => seek(d.seekTime));
   h('seekbackward', (d) => seek(el.currentTime - (d.seekOffset || 10)));
   h('seekforward', (d) => seek(el.currentTime + (d.seekOffset || 10)));
+}
+
+export function cycleRepeat() {
+  set({ repeat: state.repeat === 'off' ? 'all' : state.repeat === 'all' ? 'one' : 'off' });
+}
+
+export function toggleShuffle() {
+  const on = !state.shuffle;
+  if (on) {
+    const head = state.queue.slice(0, state.index + 1);
+    const rest = state.queue.slice(state.index + 1);
+    for (let i = rest.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [rest[i], rest[j]] = [rest[j], rest[i]]; }
+    set({ shuffle: true, queue: [...head, ...rest] });
+  } else set({ shuffle: false });
+}
+
+export async function toggleLike(track) {
+  if (!track) return;
+  const now = !state.liked[track.id];
+  set({ liked: { ...state.liked, [track.id]: now } });
+  try { await ytmod.rate(track.id, now); } catch (e) {
+    console.warn('like failed', e?.message);
+    set({ liked: { ...state.liked, [track.id]: !now } });
+  }
 }

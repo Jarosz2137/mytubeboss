@@ -261,3 +261,77 @@ h2 { font-size: 21px; font-weight: 700; margin: 26px 0 10px; letter-spacing: -0.
 
 .dbg { display: flex; gap: 8px; margin-top: 8px; }
 .dbg button { font-size: 12px; padding: 6px 10px; border-radius: 8px; background: rgba(255,255,255,.12); }
+
+/* ================= MOTION ================= */
+.stagger { animation: rise .45s cubic-bezier(.2,.9,.25,1) both; animation-delay: calc(var(--i, 0) * 28ms); }
+@keyframes rise { from { opacity: 0; transform: translateY(14px) scale(.98); } to { opacity: 1; transform: none; } }
+
+/* collapsing blurred top bar */
+.topbar { position: fixed; z-index: 15; top: 0; left: 0; right: 0; height: calc(var(--safe-top) + 54px); pointer-events: none;
+  background: rgba(10,10,12,.72); backdrop-filter: blur(24px) saturate(1.6); -webkit-backdrop-filter: blur(24px) saturate(1.6);
+  border-bottom: .5px solid rgba(255,255,255,.06); opacity: 0; transition: opacity .25s; }
+.app.scrolled .topbar { opacity: 1; }
+
+/* artist hero parallax + stretch on overscroll */
+.hero { transform-origin: 50% 100%; transform: translateY(calc(max(0, var(--sy, 0)) * .45px)) scale(calc(1 + max(0, -1 * var(--sy, 0)) / 400)); }
+.hero-title { transform: translateY(calc(max(0, var(--sy, 0)) * -.2px)); opacity: calc(1 - max(0, var(--sy, 0)) / 280); }
+.coll-cover { transform: scale(calc(1 - min(.25, max(0, var(--sy, 0)) / 900))); transform-origin: 50% 0; }
+
+/* mini player */
+.mini { transition: transform .45s cubic-bezier(.2,.9,.25,1), opacity .3s; animation: miniIn .5s cubic-bezier(.2,1.3,.3,1) both; }
+.mini.mini-hidden { transform: translateY(30px) scale(.94); opacity: 0; pointer-events: none; }
+@keyframes miniIn { from { transform: translateY(80px); opacity: 0; } to { transform: none; opacity: 1; } }
+.mini-glow { position: absolute; inset: 0; background: center/cover; filter: blur(30px) saturate(1.8); opacity: .35; transform: scale(1.4); z-index: -1; }
+.mini-cover { animation: coverIn .5s cubic-bezier(.2,1.3,.3,1) both; }
+.mini-text { animation: fadeSlide .4s ease both; }
+@keyframes fadeSlide { from { opacity: 0; transform: translateX(12px); } to { opacity: 1; transform: none; } }
+
+/* play/pause pop */
+.pop { animation: pop .32s cubic-bezier(.2,1.6,.3,1); }
+@keyframes pop { 0% { transform: scale(.7); } 100% { transform: scale(1); } }
+
+/* now playing sheet */
+.np { transition: transform .5s cubic-bezier(.2,.9,.25,1), border-radius .5s, opacity .4s; transform: translateY(100%) scale(.92); border-radius: 40px; opacity: 0; will-change: transform; }
+.np.open { transform: none; border-radius: 0; opacity: 1; }
+.np-grabber { width: 38px; height: 5px; border-radius: 3px; background: rgba(255,255,255,.35); margin: 0 auto 6px; }
+.np-bg { animation: bgIn .8s ease both; }
+@keyframes bgIn { from { opacity: 0; } to { opacity: .55; } }
+.np-cover { animation: coverIn .55s cubic-bezier(.2,1.2,.3,1) both; }
+.np-cover.from-right { animation-name: fromRight; }
+.np-cover.from-left { animation-name: fromLeft; }
+@keyframes coverIn { from { opacity: 0; transform: scale(.85); } to { opacity: 1; transform: none; } }
+@keyframes fromRight { from { opacity: 0; transform: translateX(60%) rotate(6deg) scale(.9); } to { opacity: 1; transform: none; } }
+@keyframes fromLeft { from { opacity: 0; transform: translateX(-60%) rotate(-6deg) scale(.9); } to { opacity: 1; transform: none; } }
+.np-info { display: flex; align-items: center; gap: 10px; }
+.np-meta { flex: 1; min-width: 0; animation: fadeSlide .45s ease both; }
+.like { color: rgba(255,255,255,.75); }
+.like.on { color: var(--c1); filter: brightness(1.3) saturate(1.4); animation: heart .45s cubic-bezier(.2,1.8,.3,1); }
+@keyframes heart { 0% { transform: scale(.5); } 60% { transform: scale(1.25); } 100% { transform: scale(1); } }
+.np-controls { justify-content: space-between; }
+.small-ctl { color: rgba(255,255,255,.55); position: relative; }
+.small-ctl.lit { color: var(--c1); filter: brightness(1.3); }
+.small-ctl.lit::after { content: ''; position: absolute; bottom: 2px; width: 4px; height: 4px; border-radius: 50%; background: currentColor; }
+.rep1 { position: absolute; font-size: 9px; font-weight: 800; top: 13px; }
+
+/* segmented control with sliding pill */
+.seg { position: relative; }
+.seg button { position: relative; z-index: 1; transition: color .25s; }
+.seg button.on { background: transparent; }
+.seg-pill { position: absolute; top: 3px; bottom: 3px; left: 3px; width: calc(50% - 3px); border-radius: 8px; background: rgba(255,255,255,.92);
+  transition: transform .35s cubic-bezier(.2,1.2,.3,1); box-shadow: 0 4px 14px -4px var(--c1); }
+.seg.video .seg-pill { transform: translateX(100%); }
+.seg button { flex: 1; min-width: 84px; }
+
+/* scrubber thumb grows while touched */
+.scrub input::-webkit-slider-thumb { transition: transform .15s; }
+.scrub input:active::-webkit-slider-thumb { transform: scale(1.6); }
+
+/* tab bar icon bounce */
+.tabs button svg { transition: transform .3s cubic-bezier(.2,1.6,.3,1); }
+.tabs button.on svg { transform: translateY(-2px) scale(1.12); }
+.tabs button:active svg { transform: scale(.85); }
+
+/* buttons press feel */
+.primary, .secondary, .lib-tile, .play-fab { transition: transform .15s; }
+.primary:active, .secondary:active, .lib-tile:active, .play-fab:active { transform: scale(.96); }
+.row:active { transform: scale(.985); transition: transform .1s; }

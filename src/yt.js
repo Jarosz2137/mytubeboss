@@ -658,3 +658,8 @@ export async function counterpartId(id) {
   }
   return null;
 }
+
+export async function rate(id, like) {
+  const yt = await getYT();
+  return like ? yt.interact.like(id) : yt.interact.removeRating(id);
+}
