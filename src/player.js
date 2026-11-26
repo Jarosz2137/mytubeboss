@@ -2,6 +2,7 @@
 // a queue, autoplay radio, and lock-screen / Dynamic Island metadata.
 import { useSyncExternalStore } from 'react';
 import { streamUrl, audioBlobUrl, CLIENTS, upNext } from './yt.js';
+import * as ytmod from './yt.js';
 
 const el = document.createElement('video');
 el.playsInline = true;
@@ -96,7 +97,7 @@ async function load(startAt = 0) {
   suppressErrors = false;
   if (token !== loadToken) return;
   console.error('playback failed', log);
-  set({ loading: false, playing: false, error: 'Nie gra. ' + log.join(' | ') });
+  set({ loading: false, playing: false, error: 'Nie gra. PO: ' + ytmod.poStatus + ' | ' + log.join(' | ') });
 }
 
 let suppressErrors = false;

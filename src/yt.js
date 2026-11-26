@@ -2,6 +2,7 @@
 import { Innertube, UniversalCache } from 'youtubei.js';
 import { Capacitor, CapacitorHttp, CapacitorCookies } from '@capacitor/core';
 import { Preferences } from '@capacitor/preferences';
+import { createPoMinter } from './po.js';
 
 const isNative = Capacitor.isNativePlatform();
 const CREDS_KEY = 'yt_oauth_creds';
@@ -347,32 +348,62 @@ const canHls = () => {
   return !!v.canPlayType('application/vnd.apple.mpegurl');
 };
 
-// Clients that usually don't need a PO token go first.
-export const CLIENTS = ['ANDROID_VR', 'TV', 'IOS', 'WEB'];
+// Separate anonymous session for playback, attested with a PO token from BotGuard.
+let playPromise = null;
+export let poStatus = 'brak';
 
-// Direct stream URL for one client (null if that client has nothing playable).
+function getPlayYT() {
+  if (!playPromise) {
+    playPromise = (async () => {
+      const fetchFn = isNative ? nativeFetch : devFetch;
+      const base = { fetch: fetchFn, cache: new UniversalCache(false), retrieve_player: true, lang: 'pl', location: 'PL' };
+      const anon = await Innertube.create({ ...base, generate_session_locally: true });
+      const visitorData = anon.session.context.client.visitorData;
+      try {
+        const minter = await createPoMinter(anon, fetchFn);
+        const po_token = await minter.mintAsWebsafeString(visitorData);
+        const yt = await Innertube.create({ ...base, visitor_data: visitorData, po_token });
+        poStatus = 'ok';
+        return { yt, minter };
+      } catch (e) {
+        poStatus = 'błąd: ' + String(e?.message || e).slice(0, 60);
+        console.warn('PO token failed', e);
+        return { yt: anon, minter: null };
+      }
+    })();
+    playPromise.catch(() => { playPromise = null; });
+  }
+  return playPromise;
+}
+
+// MWEB + PO token is what yt-dlp recommends; the rest are fallbacks.
+export const CLIENTS = ['MWEB', 'IOS', 'WEB', 'TV', 'ANDROID_VR'];
+
+async function opts(minter, id, base) {
+  if (!minter) return base;
+  try { return { ...base, po_token: await minter.mintAsWebsafeString(id) }; } catch { return base; }
+}
+
 export async function streamUrl(id, mode, client) {
-  const yt = await getYT();
+  const { yt, minter } = await getPlayYT();
   if (mode === 'video' && client === 'IOS' && canHls()) {
     const info = await yt.getBasicInfo(id, { client: 'IOS' });
     if (info.streaming_data?.hls_manifest_url) return info.streaming_data.hls_manifest_url;
   }
-  const opts = mode === 'video'
+  const base = mode === 'video'
     ? { type: 'video+audio', quality: 'best', format: 'mp4', client }
     : { type: 'audio', quality: 'best', format: 'mp4', client };
-  const f = await yt.getStreamingData(id, opts);
+  const f = await yt.getStreamingData(id, await opts(minter, id, base));
   return f?.url || null;
 }
 
-// Fallback: download the whole audio file through native HTTP (right headers, no CORS)
-// and play it from memory. Slower start, but works when direct URLs get refused.
-export async function audioBlobUrl(id, onClient) {
-  const yt = await getYT();
+// Fallback: download the whole file through native HTTP and play from memory.
+export async function audioBlobUrl(id) {
+  const { yt, minter } = await getPlayYT();
   let lastErr;
   for (const client of CLIENTS) {
     try {
-      onClient?.(client);
-      const stream = await yt.download(id, { type: 'audio', quality: 'best', format: 'mp4', client });
+      const stream = await yt.download(id, await opts(minter, id, { type: 'audio', quality: 'best', format: 'mp4', client }));
       const reader = stream.getReader();
       const parts = [];
       for (;;) {
@@ -384,7 +415,7 @@ export async function audioBlobUrl(id, onClient) {
       if (blob.size < 10000) throw new Error('za mały plik (' + blob.size + ' B)');
       return URL.createObjectURL(blob);
     } catch (e) {
-      lastErr = e;
+      lastErr = new Error(client + ': ' + (e?.message || e));
       console.warn('blob via ' + client + ' failed', e);
     }
   }
