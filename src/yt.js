@@ -139,12 +139,14 @@ export async function signInWithCookie(raw) {
   }
   await Preferences.set({ key: COOKIE_KEY, value: cookie });
   ytPromise = null;
+  playPromise = null;
   await getYT();
   emit({ type: 'signed-in' });
 }
 
 export async function signOut() {
   await Preferences.remove({ key: COOKIE_KEY });
+  playPromise = null;
   if (isNative) { try { await CapacitorCookies.clearAllCookies(); } catch { /* ignore */ } }
   ytPromise = null;
   emit({ type: 'signed-out' });
@@ -377,23 +379,43 @@ const canHls = () => {
 let playPromise = null;
 export let poStatus = 'brak';
 
+// Logged-in sessions must bind the streaming PO token to the account's DataSync ID,
+// anonymous ones to visitorData (per yt-dlp's PO token guide).
+async function fetchDataSyncId(fetchFn, cookie) {
+  try {
+    const r = await fetchFn('https://www.youtube.com/', { headers: { cookie } });
+    const html = await r.text();
+    const m = html.match(/"DATASYNC_ID":"([^"]+)"/);
+    return m ? m[1].split('||')[0] : null;
+  } catch { return null; }
+}
+
 function getPlayYT() {
   if (!playPromise) {
     playPromise = (async () => {
       const fetchFn = isNative ? nativeFetch : devFetch;
-      const base = { fetch: fetchFn, cache: new UniversalCache(false), retrieve_player: true, lang: 'pl', location: 'PL' };
-      const anon = await Innertube.create({ ...base, generate_session_locally: true });
-      const visitorData = anon.session.context.client.visitorData;
+      const cookie = (await Preferences.get({ key: COOKIE_KEY })).value || undefined;
+      const base = { fetch: fetchFn, cache: new UniversalCache(false), retrieve_player: true, lang: 'pl', location: 'PL', cookie };
+      const first = await Innertube.create({ ...base, generate_session_locally: !cookie });
+      const visitorData = first.session.context.client.visitorData;
+      let binding = visitorData;
+      if (cookie) {
+        const ds = await fetchDataSyncId(fetchFn, cookie);
+        if (ds) binding = ds;
+        console.info('[PO] logged in, binding to', ds ? 'DataSync ID' : 'visitorData (no DataSync ID found)');
+      } else {
+        console.info('[PO] anonymous, binding to visitorData');
+      }
       try {
-        const minter = await createPoMinter(anon, fetchFn);
-        const po_token = await minter.mintAsWebsafeString(visitorData);
+        const minter = await createPoMinter(first, fetchFn);
+        const po_token = await minter.mintAsWebsafeString(binding);
         const yt = await Innertube.create({ ...base, visitor_data: visitorData, po_token });
-        poStatus = 'ok';
-        return { yt, minter, po_token, fetchFn, visitorData };
+        poStatus = 'ok' + (cookie ? ' (konto)' : '');
+        return { yt, minter, po_token, fetchFn, visitorData, binding };
       } catch (e) {
         poStatus = 'błąd: ' + String(e?.message || e).slice(0, 220);
         console.warn('PO token failed', e);
-        return { yt: anon, minter: null, po_token: undefined, fetchFn, visitorData };
+        return { yt: first, minter: null, po_token: undefined, fetchFn, visitorData, binding };
       }
     })();
     playPromise.catch(() => { playPromise = null; });
@@ -458,7 +480,7 @@ export async function audioBlobUrl(id) {
 // SABR: YouTube's own streaming protocol (what the web player uses now).
 // Downloads the audio track (AAC/mp4) and plays it from memory.
 export async function sabrAudioBlobUrl(id, onProgress) {
-  const { yt, minter, po_token, fetchFn, visitorData } = await getPlayYT();
+  const { yt, minter, po_token, fetchFn, binding } = await getPlayYT();
   const loadInfo = async () => {
     const info = await yt.getBasicInfo(id, await opts(minter, id, { client: 'WEB' }));
     const url = info.streaming_data?.server_abr_streaming_url;
@@ -490,7 +512,7 @@ export async function sabrAudioBlobUrl(id, onProgress) {
     clientInfo: { clientName: 1, clientVersion: c.clientVersion, osName: c.osName, osVersion: c.osVersion },
     callbacks: {
       // YouTube asks for attestation (~1 min in); without this the stream just stops.
-      onMintPoToken: minter ? async () => { console.info('[SABR] minting PO for', visitorData?.slice(0, 12)); return minter.mint(visitorData); } : undefined,
+      onMintPoToken: minter ? async () => { console.info('[SABR] minting PO for', binding?.slice(0, 12)); return minter.mint(binding); } : undefined,
       onReloadPlayerResponse: async () => {
         const r = await loadInfo();
         return { serverAbrStreamingUrl: r.serverAbrStreamingUrl, videoPlaybackUstreamerConfig: r.videoPlaybackUstreamerConfig };
