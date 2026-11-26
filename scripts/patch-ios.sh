@@ -10,6 +10,13 @@ DELEGATE="ios/App/App/AppDelegate.swift"
 /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes array" "$PLIST"
 /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes:0 string audio" "$PLIST"
 
+# Allow rotating the phone (portrait + both landscapes) for the landscape layouts.
+/usr/libexec/PlistBuddy -c "Delete :UISupportedInterfaceOrientations" "$PLIST" 2>/dev/null || true
+/usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations array" "$PLIST"
+/usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations:0 string UIInterfaceOrientationPortrait" "$PLIST"
+/usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations:1 string UIInterfaceOrientationLandscapeLeft" "$PLIST"
+/usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations:2 string UIInterfaceOrientationLandscapeRight" "$PLIST"
+
 # 2) Audio session = playback (ignores the mute switch, enables lock screen / Dynamic Island).
 if ! grep -q "AVAudioSession" "$DELEGATE"; then
   perl -0pi -e 's/import UIKit/import UIKit\nimport AVFoundation/' "$DELEGATE"

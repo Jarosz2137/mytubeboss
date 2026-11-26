@@ -570,3 +570,51 @@ h2 { font-size: 21px; font-weight: 700; margin: 26px 0 10px; letter-spacing: -0.
 .np-nav-item { min-width: 0; }
 .np-nav-title { display: block; }
 .card, .la-tile { min-width: 0; }
+
+/* ================= LANDSCAPE (phone turned sideways) ================= */
+:root { --safe-l: env(safe-area-inset-left, 0px); --safe-r: env(safe-area-inset-right, 0px); }
+@media (orientation: landscape) and (max-height: 600px) {
+  :root { --tabs-h: calc(44px + var(--safe-bot)); --mini-h: 54px; }
+
+  /* app chrome */
+  .view { padding-left: calc(var(--safe-l) + 20px); padding-right: calc(var(--safe-r) + 20px); max-width: none; }
+  .tabs { padding-left: var(--safe-l); padding-right: var(--safe-r); }
+  .tabs button { flex-direction: row; gap: 8px; font-size: 12px; }
+  .tabs button svg { width: 20px; height: 20px; }
+  .mini { left: calc(var(--safe-l) + 12px); right: calc(var(--safe-r) + 12px); max-width: 720px; margin: 0 auto; }
+  .back { left: calc(var(--safe-l) + 10px); }
+  .wm-md { transform: scale(.8); transform-origin: left center; }
+  .qp-page { flex-basis: 46%; }
+  .vpop { right: calc(var(--safe-r) + 12px); width: 32vw; }
+
+  /* big player: cover on the left, everything else on the right */
+  .np-inner { display: grid; grid-template-columns: minmax(0, 44%) minmax(0, 1fr); grid-auto-rows: min-content; align-content: center;
+    column-gap: 36px; max-width: none; height: 100%; box-sizing: border-box;
+    padding: calc(var(--safe-top) + 8px) calc(var(--safe-r) + 28px) calc(var(--safe-bot) + 10px) calc(var(--safe-l) + 28px); }
+  .np-inner > * { grid-column: 2; }
+  .np-grabber { display: none; }
+  .np-art, .np-queue { grid-column: 1; grid-row: 1 / span 12; align-self: center; height: calc(100vh - var(--safe-top) - var(--safe-bot) - 24px); }
+  .np-queue { overflow-y: auto; }
+  .np-brand { margin-bottom: 4px; }
+  .np-strip .np-cover, .np-strip .np-cover.big { width: min(78%, calc(100vh - 90px)); }
+  .np-cover { -webkit-box-reflect: none; }
+  .np-side { width: 40%; }
+  .np-nav { margin-top: 8px; }
+  .np-title { font-size: 20px; }
+  .np-artist { font-size: 16px; }
+  .np-controls { margin-top: 6px; }
+  .scrub { margin-top: 6px; padding-top: 6px; }
+  .np-sun { width: 70vh; top: 4%; }
+  .np-grid { height: 40%; }
+
+  /* music video sideways = video fills the screen, top bar floats over it */
+  .np.mode-video .np-art { position: fixed; inset: 0; height: auto; z-index: 1; background: #000; }
+  .np.mode-video .np-video { width: 100%; height: 100%; margin: 0; aspect-ratio: auto; box-shadow: none; }
+  .np.mode-video .np-video video { object-fit: contain; }
+  .np.mode-video .np-inner > :not(.np-art):not(.np-top) { display: none; }
+  .np.mode-video .np-top { position: fixed; z-index: 2; top: 0; left: 0; right: 0;
+    padding: calc(var(--safe-top) + 10px) calc(var(--safe-r) + 20px) 24px calc(var(--safe-l) + 20px);
+    background: linear-gradient(rgba(0,0,0,.6), transparent); }
+  .np.mode-video .np-full { right: calc(var(--safe-r) + 16px); bottom: calc(var(--safe-bot) + 16px); }
+  .np.mode-video .np-full.pip { right: calc(var(--safe-r) + 68px); }
+}

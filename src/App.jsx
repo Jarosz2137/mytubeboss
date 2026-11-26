@@ -688,7 +688,7 @@ function NowPlaying({ open, onClose, onOpen, sheetRef }) {
   return (
     <div
       ref={sheet}
-      className={`np ${open ? 'open' : ''} ${p.playing ? 'is-playing' : ''} ${beat ? 'beat-on' : ''}`}
+      className={`np mode-${p.mode} ${open ? 'open' : ''} ${p.playing ? 'is-playing' : ''} ${beat ? 'beat-on' : ''}`}
       onTouchStart={onStart} onTouchMove={onMove} onTouchEnd={onEnd} onTouchCancel={onEnd}
     >
       <div className="np-bg" key={'bg' + t.id} style={{ backgroundImage: t.thumb ? `url(${t.thumb})` : undefined }} />
