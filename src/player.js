@@ -45,6 +45,22 @@ export const current = () => state.queue[state.index];
 export const videoElement = videoEl;
 export const audioElement = audioEl;
 
+// Output picker (iPhone speaker / headphones / Bluetooth / AirPlay). The playing elements use
+// MSE with remote playback disabled, so we open the iOS route picker from a silent helper element;
+// the route it picks applies to the whole app's audio.
+const routeEl = document.createElement('video');
+routeEl.setAttribute('x-webkit-airplay', 'allow');
+routeEl.setAttribute('playsinline', '');
+routeEl.muted = true;
+routeEl.style.cssText = 'position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;left:-10px;top:-10px';
+document.addEventListener('DOMContentLoaded', () => document.body.appendChild(routeEl));
+if (document.body) document.body.appendChild(routeEl);
+export const canPickOutput = () => typeof routeEl.webkitShowPlaybackTargetPicker === 'function';
+export function pickOutput() {
+  try { routeEl.webkitShowPlaybackTargetPicker(); return true; }
+  catch (e) { console.warn('[route]', e); return false; }
+}
+
 let loadToken = 0;
 let lastBlobUrl = null;
 

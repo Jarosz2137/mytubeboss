@@ -5,7 +5,7 @@ import { useCoverColors } from './colors.js';
 import { getLogs, clearLogs } from './debuglog.js';
 import {
   usePlayer, current, playList, addNext, jump, toggle, next, prev, seek, setMode, videoElement,
-  cycleRepeat, toggleShuffle, toggleLike, useTime, togglePip,
+  cycleRepeat, toggleShuffle, toggleLike, useTime, togglePip, pickOutput,
 } from './player.js';
 import { setBeat, beatOn, onBeat, setBeatTarget } from './beat.js';
 import { onOta, otaState, applyNow } from './ota.js';
@@ -712,7 +712,12 @@ function NowPlaying({ open, onClose, onOpen, sheetRef }) {
             <button className={p.mode === 'audio' ? 'on' : ''} onClick={() => { tap(); setMode('audio'); }}>Utwór</button>
             <button className={p.mode === 'video' ? 'on' : ''} onClick={() => { tap(); setMode('video'); }}>Teledysk</button>
           </div>
-          <button className={`icon-btn ${showQueue ? 'lit' : ''}`} onClick={() => { tap(); setShowQueue((x) => !x); }}>{Icon.queue}</button>
+          <div className="np-top-r">
+            <button className="icon-btn" onClick={() => { tap(); if (!pickOutput()) alert('Zmień wyjście w Centrum sterowania (ikona AirPlay przy odtwarzaczu).'); }} aria-label="Wybierz urządzenie">
+              <svg viewBox="0 0 24 24"><path d="M6 17H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h16a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1h-2" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /><path d="M12 14l5 6H7z" fill="currentColor" /></svg>
+            </button
+            >{' '}<button className={`icon-btn ${showQueue ? 'lit' : ''}`} onClick={() => { tap(); setShowQueue((x) => !x); }}>{Icon.queue}</button>
+          </div>
         </div>
 
         {showQueue ? (

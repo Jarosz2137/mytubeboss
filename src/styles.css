@@ -618,3 +618,10 @@ h2 { font-size: 21px; font-weight: 700; margin: 26px 0 10px; letter-spacing: -0.
   .np.mode-video .np-full { right: calc(var(--safe-r) + 16px); bottom: calc(var(--safe-bot) + 16px); }
   .np.mode-video .np-full.pip { right: calc(var(--safe-r) + 68px); }
 }
+
+/* output (AirPlay / Bluetooth / speaker) button next to the queue */
+.np-top-r { display: flex; gap: 4px; align-items: center; }
+.np-top-r .icon-btn svg { width: 22px; height: 22px; }
+.np-top { display: grid; grid-template-columns: 1fr auto 1fr; }
+.np-top > :first-child { justify-self: start; }
+.np-top-r { justify-self: end; }
