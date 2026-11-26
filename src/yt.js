@@ -318,10 +318,38 @@ export function toSections(list) {
 
 /* ---------------- API ---------------- */
 
-export async function home() {
+function tagSection(raw, sec) {
+  const t = (sec.title || '').toLowerCase();
+  const perCol = raw?.num_items_per_column || 0;
+  if (/szybki wyb|quick pick/.test(t) || (perCol > 1 && sec.items.every(isPlayable))) return 'quick';
+  if (/jeszcze raz|listen again|ponownie/.test(t)) return 'again';
+  return 'normal';
+}
+
+let homeFeed = null;
+export async function home(filter) {
   const yt = await getYT();
-  const feed = await yt.music.getHomeFeed();
-  return toSections(feed.sections);
+  let feed = await yt.music.getHomeFeed();
+  const chips = (() => { try { return feed.filters || []; } catch { return []; } })();
+  if (filter) feed = await feed.applyFilter(filter);
+  homeFeed = feed;
+  const raws = [...(feed.sections || [])];
+  // pull a couple more pages so there's plenty to scroll
+  for (let i = 0; i < 2 && feed.has_continuation; i++) {
+    try { feed = await feed.getContinuation(); raws.push(...(feed.sections || [])); } catch { break; }
+  }
+  const sections = [];
+  for (const raw of raws) {
+    const [sec] = toSections([raw]);
+    if (!sec) continue;
+    sec.kind = tagSection(raw, sec);
+    sec.strapline = txt(raw.header?.strapline);
+    sections.push(sec);
+  }
+  // Quick picks + Listen again on top, like the YT Music app
+  const order = { quick: 0, again: 1, normal: 2 };
+  sections.sort((a, b) => order[a.kind] - order[b.kind]);
+  return { chips, sections };
 }
 
 export async function search(q) {

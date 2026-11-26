@@ -168,17 +168,76 @@ function Section({ s, onOpen }) {
 
 /* ---------------- views ---------------- */
 
+function QuickPicks({ s }) {
+  const tracks = s.items.filter(yt.isPlayable);
+  const pages = [];
+  for (let i = 0; i < tracks.length; i += 4) pages.push(tracks.slice(i, i + 4));
+  return (
+    <section className="section">
+      <div className="sec-head"><h2>{s.title || 'Szybki wybór'}</h2><button className="sec-play" onClick={() => { tap(); playList(tracks, 0); }}>{Icon.play} Odtwórz</button></div>
+      <div className="qp-pages">
+        {pages.map((pg, pi) => (
+          <div className="qp-page" key={pi}>
+            {pg.map((t, j) => {
+              const i = pi * 4 + j;
+              return (
+                <div className="qp-row stagger" style={{ '--i': i }} key={t.id + i} onClick={() => { tap(); playList(tracks, i); }}>
+                  <Cover src={t.thumb} className="qp-cover" />
+                  <div className="row-text"><div className="row-title">{t.title}</div><div className="row-sub">{t.subtitle}</div></div>
+                  <button className="icon-btn small" onClick={(e) => { e.stopPropagation(); tap(); addNext(t); }}>{Icon.plus}</button>
+                </div>
+              );
+            })}
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function ListenAgain({ s, onOpen }) {
+  return (
+    <section className="section">
+      {s.strapline && <div className="strap">{s.strapline}</div>}
+      <h2>{s.title || 'Posłuchaj jeszcze raz'}</h2>
+      <div className="la-grid">
+        {s.items.map((it, i) => {
+          const kind = kindOf(it);
+          return (
+            <div className="la-tile stagger" style={{ '--i': i }} key={(it.id || '') + i} onClick={() => { tap(); yt.isPlayable(it) ? playList(s.items.filter(yt.isPlayable), s.items.filter(yt.isPlayable).indexOf(it)) : onOpen(it); }}>
+              <Cover src={it.thumb} round={kind === 'artist'} />
+              <div className="la-title">{it.title}</div>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 function HomeView({ onOpen }) {
-  const s = useAsync(() => yt.home(), []);
+  const [chip, setChip] = useState(null);
+  const s = useAsync(() => yt.home(chip), [chip]);
+  const [chips, setChips] = useState([]);
+  useEffect(() => { if (s.data?.chips?.length && !chips.length) setChips(s.data.chips); }, [s.data]);
   return (
     <div className="view">
       <div className="home-head">
         <Wordmark />
         <div className="greet">{greeting()}</div>
       </div>
+      {chips.length > 0 && (
+        <div className="chips">
+          <button className={!chip ? 'on' : ''} onClick={() => { tap(); setChip(null); }}>Wszystko</button>
+          {chips.map((c) => <button key={c} className={chip === c ? 'on' : ''} onClick={() => { tap(); setChip(chip === c ? null : c); }}>{c}</button>)}
+        </div>
+      )}
       {s.loading && <Loader />}
       {s.error && <Err text={s.error} />}
-      {s.data?.map((sec, i) => <Section key={i} s={sec} onOpen={onOpen} />)}
+      {s.data?.sections.map((sec, i) =>
+        sec.kind === 'quick' ? <QuickPicks key={i} s={sec} />
+          : sec.kind === 'again' ? <ListenAgain key={i} s={sec} onOpen={onOpen} />
+            : <Section key={i} s={sec} onOpen={onOpen} />)}
     </div>
   );
 }
