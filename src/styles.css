@@ -531,3 +531,8 @@ h2 { font-size: 21px; font-weight: 700; margin: 26px 0 10px; letter-spacing: -0.
 .mq.run .mq-item { padding-right: 48px; }
 .mq.run .mq-track { animation: mq var(--mq-d) linear 1.8s infinite; will-change: transform; }
 @keyframes mq { 0%, 12% { transform: translateX(0); } 100% { transform: translateX(calc(-1 * var(--mq-w))); } }
+
+/* thin neon bar while a view refreshes in the background */
+.refreshing { position: sticky; top: 0; height: 2px; margin: 0 -20px 8px; overflow: hidden; z-index: 5; }
+.refreshing::before { content: ''; position: absolute; inset: 0; width: 40%; background: linear-gradient(90deg, transparent, #ff5e8a, #ffe08a, transparent); animation: refreshRun 1s linear infinite; }
+@keyframes refreshRun { from { transform: translateX(-100%); } to { transform: translateX(250%); } }

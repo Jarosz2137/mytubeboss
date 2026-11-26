@@ -95,7 +95,7 @@ function useAsync(fn, deps) {
   const [s, setS] = useState({ loading: true, data: null, error: '' });
   useEffect(() => {
     let alive = true;
-    setS({ loading: true, data: null, error: '' });
+    setS((prev) => ({ loading: true, data: prev.data, error: '' })); // stale-while-revalidate
     fn().then(
       (data) => alive && setS({ loading: false, data, error: '' }),
       (e) => alive && setS({ loading: false, data: null, error: e?.message || String(e) }),
@@ -285,9 +285,9 @@ function ListenAgain({ s, onOpen }) {
   );
 }
 
-function HomeView({ onOpen }) {
+function HomeView({ onOpen, fresh }) {
   const [chip, setChip] = useState(null);
-  const s = useAsync(() => yt.home(chip), [chip]);
+  const s = useAsync(() => yt.home(chip), [chip, fresh]);
   const [chips, setChips] = useState([]);
   useEffect(() => { if (s.data?.chips?.length && !chips.length) setChips(s.data.chips); }, [s.data]);
   return (
@@ -302,7 +302,7 @@ function HomeView({ onOpen }) {
           {chips.map((c) => <button key={c} className={chip === c ? 'on' : ''} onClick={() => { tap(); setChip(chip === c ? null : c); }}>{c}</button>)}
         </div>
       )}
-      {s.loading && <Loader />}
+      {s.loading && (s.data ? <div className="refreshing" /> : <Loader />)}
       {s.error && <Err text={s.error} />}
       {s.data?.sections.map((sec, i) =>
         sec.kind === 'quick' ? <QuickPicks key={i} s={sec} />
@@ -352,7 +352,7 @@ function SearchView({ onOpen }) {
   );
 }
 
-function LibraryView({ onOpen }) {
+function LibraryView({ onOpen, fresh }) {
   const [signed, setSigned] = useState(null);
   const [cookie, setCookie] = useState('');
   const [busy, setBusy] = useState(false);
@@ -367,7 +367,7 @@ function LibraryView({ onOpen }) {
     });
   }, []);
 
-  const lib = useAsync(() => (signed ? yt.library() : Promise.resolve([])), [signed, reload]);
+  const lib = useAsync(() => (signed ? yt.library() : Promise.resolve([])), [signed, reload, fresh]);
 
   if (signed === null) return <div className="view"><h1 className="big">Biblioteka</h1><Loader /></div>;
 
@@ -403,7 +403,7 @@ function LibraryView({ onOpen }) {
       <div className="lib-quick">
         <div className="lib-tile liked" onClick={() => onOpen({ type: 'playlist', id: 'LM', title: 'Polubione' })}>♥<span>Polubione utwory</span></div>
       </div>
-      {lib.loading && <Loader />}
+      {lib.loading && (lib.data ? <div className="refreshing" /> : <Loader />)}
       {lib.error && <Err text={lib.error} />}
       {lib.data?.map((sec, i) => <Section key={i} s={sec} onOpen={onOpen} />)}
       <button className="ghost" onClick={() => yt.signOut()}>Wyloguj</button>
@@ -796,6 +796,8 @@ function OtaPill() {
 
 export default function App() {
   const [tab, setTab] = useState('home');
+  const [fresh, setFresh] = useState({ home: 0, search: 0, library: 0 });
+  const bump = (t) => setFresh((f) => ({ ...f, [t]: (f[t] || 0) + 1 }));
   const [stack, setStack] = useState([]);
   const [npOpen, setNpOpen] = useState(false);
   const scroller = useRef();
@@ -829,7 +831,20 @@ export default function App() {
     scroller.current?.scrollTo(0, 0);
   }, []);
   const back = () => setStack((s) => s.slice(0, -1));
-  const switchTab = (t) => { setTab(t); setStack([]); scroller.current?.scrollTo(0, 0); };
+  const switchTab = (t) => {
+    setTab(t); setStack([]); scroller.current?.scrollTo(0, 0);
+    bump(t); // every tap on a tab re-fetches it, like a reload in YT Music
+  };
+  const tabRef = useRef(tab); tabRef.current = tab;
+  useEffect(() => {
+    let hiddenAt = 0;
+    const onVis = () => {
+      if (document.hidden) hiddenAt = Date.now();
+      else if (hiddenAt && Date.now() - hiddenAt > 20000) bump(tabRef.current);
+    };
+    document.addEventListener('visibilitychange', onVis);
+    return () => document.removeEventListener('visibilitychange', onVis);
+  }, []);
 
   const top = stack[stack.length - 1];
   const pl = usePlayer();
@@ -849,9 +864,9 @@ export default function App() {
         <div className="topbar" />
         {top && <button className="back" onClick={back}>{Icon.back}</button>}
         <div style={{ display: top ? 'none' : 'block' }}>
-          <div style={{ display: tab === 'home' ? 'block' : 'none' }}><HomeView onOpen={open} /></div>
+          <div style={{ display: tab === 'home' ? 'block' : 'none' }}><HomeView onOpen={open} fresh={fresh.home} /></div>
           <div style={{ display: tab === 'search' ? 'block' : 'none' }}><SearchView onOpen={open} /></div>
-          <div style={{ display: tab === 'library' ? 'block' : 'none' }}><LibraryView onOpen={open} /></div>
+          <div style={{ display: tab === 'library' ? 'block' : 'none' }}><LibraryView onOpen={open} fresh={fresh.library} /></div>
         </div>
         {top?.kind === 'artist' && <ArtistView key={top.id} id={top.id} onOpen={open} />}
         {(top?.kind === 'album' || top?.kind === 'playlist') && <CollectionView key={top.id} id={top.id} kind={top.kind} onOpen={open} />}
