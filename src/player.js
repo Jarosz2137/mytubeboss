@@ -218,7 +218,14 @@ async function load(startAt = 0) {
   suppressErrors = false;
   if (token !== loadToken) return;
   console.error('playback failed', log);
-  set({ loading: false, playing: false, error: 'Nie gra. PO: ' + ytmod.poStatus + ' | ' + log.join(' | ') });
+  // Track simply not available (removed, region-locked, invalid id) -> skip it, don't stall the queue.
+  const unavailable = log.some((l) => /unavailable|niedost|invalid|login required|Music queue was empty/i.test(l));
+  if (unavailable && state.index < state.queue.length - 1) {
+    set({ error: 'Niedostępny na YouTube, pomijam…' });
+    setTimeout(() => { if (token === loadToken) next(); }, 1200);
+    return;
+  }
+  set({ loading: false, playing: false, error: (unavailable ? 'Ten utwór jest niedostępny na YouTube. ' : 'Nie gra. ') + 'PO: ' + ytmod.poStatus + ' | ' + log.join(' | ') });
 }
 
 let suppressErrors = false;

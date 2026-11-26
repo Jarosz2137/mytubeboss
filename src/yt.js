@@ -298,7 +298,7 @@ export function norm(it, fallback = {}) {
 }
 
 const PLAYABLE = new Set(['song', 'video', 'non_music_track']);
-export const isPlayable = (x) => x && PLAYABLE.has(x.type) && x.id;
+export const isPlayable = (x) => !!(x && PLAYABLE.has(x.type) && /^[\w-]{11}$/.test(x.id || ''));
 
 function sectionItems(s) {
   let raw = [];
