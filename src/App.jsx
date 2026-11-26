@@ -449,10 +449,24 @@ function MiniPlayer({ onExpand, hidden, onDrag, onDragEnd }) {
     <div
       className={`mini ${hidden ? 'mini-hidden' : ''}`}
       onClick={onExpand}
-      onTouchStart={(e) => { if (e.target.closest('button')) return; startY.current = e.touches[0].clientY; }}
-      onTouchMove={(e) => { if (startY.current != null) onDrag(Math.min(0, e.touches[0].clientY - startY.current)); }}
-      onTouchEnd={(e) => { if (startY.current != null) { const dy = e.changedTouches[0].clientY - startY.current; startY.current = null; onDragEnd(dy); } }}
-      onTouchCancel={() => { if (startY.current != null) { startY.current = null; onDragEnd(0.1); } }}
+      onTouchStart={(e) => {
+        if (e.target.closest('button')) return;
+        const y = e.touches[0].clientY;
+        startY.current = { y, ly: y, lt: performance.now(), v: 0 };
+      }}
+      onTouchMove={(e) => {
+        const s0 = startY.current;
+        if (!s0) return;
+        const y = e.touches[0].clientY, now = performance.now();
+        s0.v = (y - s0.ly) / Math.max(1, now - s0.lt); s0.ly = y; s0.lt = now;
+        onDrag(Math.min(0, y - s0.y));
+      }}
+      onTouchEnd={(e) => {
+        const s0 = startY.current;
+        startY.current = null;
+        if (s0) onDragEnd(e.changedTouches[0].clientY - s0.y, s0.v);
+      }}
+      onTouchCancel={() => { const s0 = startY.current; startY.current = null; if (s0) onDragEnd(s0.ly - s0.y, s0.v); }}
     >
       <div className="mini-glow" style={{ backgroundImage: t.thumb ? `url(${t.thumb})` : undefined }} />
       <MiniProgress />
@@ -545,20 +559,21 @@ function NowPlaying({ open, onClose, onOpen, sheetRef }) {
     const h = window.innerHeight;
     const k = Math.min(1, Math.max(0, dy / h));
     el.style.transition = animate ? '' : 'none';
-    el.style.transform = dy ? `translateY(${dy}px) scale(${1 - k * 0.12})` : '';
-    el.style.borderRadius = dy ? `${Math.min(40, 12 + k * 80)}px` : '';
-    el.style.opacity = dy ? String(1 - k * 0.5) : '';
+    el.style.transform = dy ? `translate3d(0, ${dy}px, 0) scale(${1 - k * 0.06})` : '';
+    el.style.borderRadius = dy ? `${Math.min(36, 14 + k * 60)}px` : '';
   };
   const onStart = (e) => {
     if (e.target.closest('.scrub, button, .np-queue, input')) return;
     const tt = e.touches[0];
-    g.current = { x: tt.clientX, y: tt.clientY, axis: null, onArt: !!e.target.closest('.np-art') };
+    g.current = { x: tt.clientX, y: tt.clientY, axis: null, onArt: !!e.target.closest('.np-art'), ly: tt.clientY, lt: performance.now(), v: 0 };
   };
   const onMove = (e) => {
     const s0 = g.current;
     if (!s0) return;
     const tt = e.touches[0];
     const dx = tt.clientX - s0.x, dy = tt.clientY - s0.y;
+    const now = performance.now();
+    s0.v = (tt.clientY - s0.ly) / Math.max(1, now - s0.lt); s0.ly = tt.clientY; s0.lt = now;
     if (!s0.axis) {
       if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
       s0.axis = Math.abs(dy) > Math.abs(dx) ? 'y' : 'x';
@@ -570,11 +585,11 @@ function NowPlaying({ open, onClose, onOpen, sheetRef }) {
     const s0 = g.current;
     g.current = null;
     if (!s0) return;
-    const tt = e.changedTouches[0];
-    const dy = tt.clientY - s0.y;
+    const tt = e.changedTouches?.[0];
+    const dy = (tt ? tt.clientY : s0.ly) - s0.y;
     if (s0.axis === 'y') {
       setT(0, true);
-      if (dy > 120) { tap(); onClose(); }
+      if (dy > 120 || (dy > 30 && s0.v > 0.5)) { tap(); onClose(); }
     }
     if (s0.axis === 'x') {
       const art = sheet.current.querySelector('.np-cover, .np-video');
@@ -687,18 +702,18 @@ export default function App() {
     const up = Math.min(h, -dy);
     const k = up / h; // 0 = closed, 1 = open
     el.style.transition = 'none';
-    el.style.transform = `translateY(${h - up}px) scale(${0.92 + 0.08 * k})`;
-    el.style.borderRadius = `${40 - 40 * k}px`;
-    el.style.opacity = String(Math.min(1, 0.3 + k * 1.4));
+    el.style.transform = `translate3d(0, ${h - up}px, 0) scale(${0.94 + 0.06 * k})`;
+    el.style.borderRadius = `${36 - 36 * k}px`;
+    el.style.opacity = '1';
     const mini = document.querySelector('.mini');
     if (mini) { mini.style.transition = 'none'; mini.style.opacity = String(1 - Math.min(1, k * 3)); }
   };
-  const endDragSheet = (dy) => {
+  const endDragSheet = (dy, v = 0) => {
     const el = sheetRef.current;
     const mini = document.querySelector('.mini');
     if (el) { el.style.transition = ''; el.style.transform = ''; el.style.borderRadius = ''; el.style.opacity = ''; }
     if (mini) { mini.style.transition = ''; mini.style.opacity = ''; }
-    if (-dy > 90 || Math.abs(dy) < 6) { tap(); setNpOpen(true); }
+    if (-dy > 90 || (-dy > 20 && v < -0.4) || Math.abs(dy) < 6) { tap(); setNpOpen(true); }
   };
 
   const open = useCallback((item) => {

@@ -451,3 +451,7 @@ h2 { font-size: 21px; font-weight: 700; margin: 26px 0 10px; letter-spacing: -0.
 .scrub.active .scrub-fill { background: #fff; }
 .scrub-times { transition: transform .2s, color .2s; }
 .scrub.active .scrub-times { color: #fff; transform: scale(1.04); }
+/* sheet stays opaque while dragging; mini anim must not pin opacity */
+.np { opacity: 1; background: #050507; }
+.np:not(.open) { pointer-events: none; }
+.mini { animation-fill-mode: backwards; }
