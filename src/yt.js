@@ -389,11 +389,11 @@ function getPlayYT() {
         const po_token = await minter.mintAsWebsafeString(visitorData);
         const yt = await Innertube.create({ ...base, visitor_data: visitorData, po_token });
         poStatus = 'ok';
-        return { yt, minter, po_token, fetchFn };
+        return { yt, minter, po_token, fetchFn, visitorData };
       } catch (e) {
         poStatus = 'błąd: ' + String(e?.message || e).slice(0, 220);
         console.warn('PO token failed', e);
-        return { yt: anon, minter: null, po_token: undefined, fetchFn };
+        return { yt: anon, minter: null, po_token: undefined, fetchFn, visitorData };
       }
     })();
     playPromise.catch(() => { playPromise = null; });
@@ -420,6 +420,14 @@ export async function streamUrl(id, mode, client) {
     : { type: 'audio', quality: 'best', format: 'mp4', client };
   const f = await yt.getStreamingData(id, await opts(minter, id, base));
   return f?.url || null;
+}
+
+export async function hlsUrl(id) {
+  const { yt, minter } = await getPlayYT();
+  const info = await yt.getBasicInfo(id, await opts(minter, id, { client: 'IOS' }));
+  const u = info.streaming_data?.hls_manifest_url;
+  if (!u) throw new Error('brak HLS (' + (info.playability_status?.status || '?') + ')');
+  return u;
 }
 
 // Fallback: download the whole file through native HTTP and play from memory.
@@ -450,14 +458,24 @@ export async function audioBlobUrl(id) {
 // SABR: YouTube's own streaming protocol (what the web player uses now).
 // Downloads the audio track (AAC/mp4) and plays it from memory.
 export async function sabrAudioBlobUrl(id, onProgress) {
-  const { yt, minter, po_token, fetchFn } = await getPlayYT();
-  const info = await yt.getBasicInfo(id, await opts(minter, id, { client: 'WEB' }));
+  const { yt, minter, po_token, fetchFn, visitorData } = await getPlayYT();
+  const loadInfo = async () => {
+    const info = await yt.getBasicInfo(id, await opts(minter, id, { client: 'WEB' }));
+    const url = info.streaming_data?.server_abr_streaming_url;
+    return {
+      info,
+      serverAbrStreamingUrl: url ? await yt.session.player.decipher(url) : undefined,
+      videoPlaybackUstreamerConfig: info.player_config?.media_common_config?.media_ustreamer_request_config?.video_playback_ustreamer_config,
+    };
+  };
+  const first = await loadInfo();
+  const info = first.info;
   const sd = info.streaming_data;
   const ps = info.playability_status;
   if (ps && ps.status && ps.status !== 'OK') throw new Error('SABR: ' + ps.status + ' ' + (ps.reason || ''));
   if (!sd?.server_abr_streaming_url) throw new Error('SABR: brak URL');
-  const serverAbrStreamingUrl = await yt.session.player.decipher(sd.server_abr_streaming_url);
-  const ustreamer = info.player_config?.media_common_config?.media_ustreamer_request_config?.video_playback_ustreamer_config;
+  const serverAbrStreamingUrl = first.serverAbrStreamingUrl;
+  const ustreamer = first.videoPlaybackUstreamerConfig;
   if (!ustreamer) throw new Error('SABR: brak ustreamer config');
   const formats = (sd.adaptive_formats || []).map((f) => buildSabrFormat(f));
   const c = yt.session.context.client;
@@ -470,7 +488,17 @@ export async function sabrAudioBlobUrl(id, onProgress) {
     poToken: po_token,
     formats,
     clientInfo: { clientName: 1, clientVersion: c.clientVersion, osName: c.osName, osVersion: c.osVersion },
+    callbacks: {
+      // YouTube asks for attestation (~1 min in); without this the stream just stops.
+      onMintPoToken: minter ? () => minter.mint(visitorData) : undefined,
+      onReloadPlayerResponse: async () => {
+        const r = await loadInfo();
+        return { serverAbrStreamingUrl: r.serverAbrStreamingUrl, videoPlaybackUstreamerConfig: r.videoPlaybackUstreamerConfig };
+      },
+    },
   });
+  let sps = '';
+  try { sabr.on('streamProtectionStatusUpdate', (x) => { sps = String(x?.status ?? ''); }); } catch { /* */ }
   let sabrErr = null;
   try { sabr.on('error', (e) => { sabrErr = e; }); } catch { /* */ }
   const { audioStream, videoStream, selectedFormats } = sabr.start({
@@ -505,8 +533,8 @@ export async function sabrAudioBlobUrl(id, onProgress) {
   } finally {
     clearInterval(watchdog);
   }
-  if (sabrErr) throw new Error('SABR: ' + (sabrErr.message || sabrErr) + ' po ' + Math.round(bytes / 1024) + ' KB');
-  if (Date.now() - lastChunk > 25000) throw new Error('SABR: stanął po ' + Math.round(bytes / 1024) + ' KB');
+  if (sabrErr) throw new Error('SABR: ' + (sabrErr.message || sabrErr) + ' po ' + Math.round(bytes / 1024) + ' KB (sps ' + sps + ')');
+  if (Date.now() - lastChunk > 25000) throw new Error('SABR: stanął po ' + Math.round(bytes / 1024) + ' KB (sps ' + sps + ')');
   const mime = (selectedFormats?.audioFormat?.mimeType || 'audio/mp4').split(';')[0];
   const blob = new Blob(parts, { type: mime });
   if (blob.size < 10000) throw new Error('SABR: za mały plik (' + blob.size + ' B)');

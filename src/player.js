@@ -1,7 +1,7 @@
 // Playback engine: one <video> element for both audio and music videos,
 // a queue, autoplay radio, and lock-screen / Dynamic Island metadata.
 import { useSyncExternalStore } from 'react';
-import { streamUrl, audioBlobUrl, sabrAudioBlobUrl, CLIENTS, upNext } from './yt.js';
+import { streamUrl, audioBlobUrl, sabrAudioBlobUrl, hlsUrl, CLIENTS, upNext } from './yt.js';
 import * as ytmod from './yt.js';
 
 // iOS pauses <video> when the app goes to the background, but keeps <audio> playing.
@@ -75,12 +75,10 @@ async function load(startAt = 0) {
   // Fastest path that works today: the iOS client's HLS stream (Safari plays it natively).
   // In "Utwór" mode the picture just isn't shown.
   try {
-    const hls = await streamUrl(track.id, 'video', 'IOS');
+    const hls = await hlsUrl(track.id);
     if (token !== loadToken) return;
-    if (hls && hls.includes('.m3u8') || (hls && hls.includes('manifest'))) {
-      if (await tryPlay(hls, startAt, token)) { suppressErrors = false; set({ error: '' }); return; }
-      log.push('HLS: media ' + (el.error?.code ?? 'timeout'));
-    }
+    if (await tryPlay(hls, startAt, token)) { suppressErrors = false; set({ error: '' }); return; }
+    log.push('HLS: media ' + (el.error?.code ?? 'timeout'));
   } catch (e) {
     log.push('HLS: ' + String(e?.message || e).slice(0, 80));
   }
