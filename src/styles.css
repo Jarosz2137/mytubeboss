@@ -455,3 +455,15 @@ h2 { font-size: 21px; font-weight: 700; margin: 26px 0 10px; letter-spacing: -0.
 .np { opacity: 1; background: #050507; }
 .np:not(.open) { pointer-events: none; }
 .mini { animation-fill-mode: backwards; }
+
+/* ===== cover strip: previous | now | next ===== */
+.np-art { position: relative; overflow: visible; }
+.np-strip { position: relative; width: 100%; display: flex; align-items: center; justify-content: center; will-change: transform; }
+.np-strip .np-cover { width: 70%; z-index: 2; }
+.np-strip .np-cover.big { width: 82%; }
+.np-side { position: absolute; top: 50%; width: 54%; z-index: 1; transition: opacity .3s, transform .3s; }
+.np-side .cover { width: 100%; border-radius: 10px; box-shadow: 0 18px 40px rgba(0,0,0,.5); }
+.np-side.left { left: -32%; transform: translateY(-50%) perspective(700px) rotateY(28deg) scale(.82); opacity: .55; }
+.np-side.right { left: 74%; transform: translateY(-50%) perspective(700px) rotateY(-28deg) scale(.82); opacity: .55; }
+.np-side:active { opacity: .8; }
+.np-strip .np-cover.from-right, .np-strip .np-cover.from-left { animation-name: coverIn; }

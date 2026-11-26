@@ -565,7 +565,7 @@ function NowPlaying({ open, onClose, onOpen, sheetRef }) {
   const onStart = (e) => {
     if (e.target.closest('.scrub, button, .np-queue, input')) return;
     const tt = e.touches[0];
-    g.current = { x: tt.clientX, y: tt.clientY, axis: null, onArt: !!e.target.closest('.np-art'), ly: tt.clientY, lt: performance.now(), v: 0 };
+    g.current = { x: tt.clientX, y: tt.clientY, axis: null, onArt: !!e.target.closest('.np-art'), ly: tt.clientY, lt: performance.now(), v: 0, t0: performance.now() };
   };
   const onMove = (e) => {
     const s0 = g.current;
@@ -579,7 +579,11 @@ function NowPlaying({ open, onClose, onOpen, sheetRef }) {
       s0.axis = Math.abs(dy) > Math.abs(dx) ? 'y' : 'x';
     }
     if (s0.axis === 'y' && dy > 0) setT(dy, false);
-    if (s0.axis === 'x' && s0.onArt) { s0.dx = dx; const art = sheet.current.querySelector('.np-cover, .np-video'); if (art) { art.style.transition = 'none'; art.style.transform = `translateX(${dx}px) rotate(${dx / 40}deg)`; } }
+    if (s0.axis === 'x' && s0.onArt) {
+      s0.dx = dx;
+      const strip = sheet.current.querySelector('.np-strip, .np-video');
+      if (strip) { strip.style.transition = 'none'; strip.style.transform = `translate3d(${dx}px, 0, 0)`; }
+    }
   };
   const onEnd = (e) => {
     const s0 = g.current;
@@ -592,12 +596,24 @@ function NowPlaying({ open, onClose, onOpen, sheetRef }) {
       if (dy > 120 || (dy > 30 && s0.v > 0.5)) { tap(); onClose(); }
     }
     if (s0.axis === 'x') {
-      const art = sheet.current.querySelector('.np-cover, .np-video');
-      if (art) { art.style.transition = ''; art.style.transform = ''; }
-      if (s0.onArt && Math.abs(s0.dx || 0) > 80) {
+      const strip = sheet.current.querySelector('.np-strip, .np-video');
+      const dx = s0.dx || 0;
+      const vx = dx / Math.max(1, performance.now() - (s0.t0 || performance.now() - 300));
+      const goNext = dx < 0 && p.queue[p.index + 1];
+      const goPrev = dx > 0 && (p.queue[p.index - 1] || true);
+      if (strip && s0.onArt && (Math.abs(dx) > 70 || Math.abs(vx) > 0.6) && (goNext || goPrev)) {
         tap();
-        setSlide(s0.dx < 0 ? 'from-right' : 'from-left');
-        s0.dx < 0 ? next() : prev();
+        const step = (strip.parentElement?.clientWidth || window.innerWidth) * 0.51;
+        strip.style.transition = 'transform .26s cubic-bezier(.2,.8,.3,1)';
+        strip.style.transform = `translate3d(${dx < 0 ? -step : step}px, 0, 0)`;
+        setTimeout(() => {
+          setSlide('');
+          dx < 0 ? next() : prev();
+          requestAnimationFrame(() => { strip.style.transition = 'none'; strip.style.transform = ''; });
+        }, 260);
+      } else if (strip) {
+        strip.style.transition = 'transform .35s cubic-bezier(.2,1.3,.3,1)';
+        strip.style.transform = '';
       }
     }
   };
@@ -647,7 +663,21 @@ function NowPlaying({ open, onClose, onOpen, sheetRef }) {
           <div className="np-art">
             {p.mode === 'video'
               ? <div className="np-video" ref={videoBox} />
-              : <Cover key={t.id} src={t.thumb} className={`np-cover ${p.playing ? 'big' : ''} ${slide}`} />}
+              : (
+                <div className="np-strip">
+                  {p.queue[p.index - 1] && (
+                    <div className="np-side left" key={'l' + p.queue[p.index - 1].id} onClick={() => { tap(); prev(); }}>
+                      <Cover src={p.queue[p.index - 1].thumb} />
+                    </div>
+                  )}
+                  <Cover key={t.id} src={t.thumb} className={`np-cover ${p.playing ? 'big' : ''} ${slide}`} />
+                  {p.queue[p.index + 1] && (
+                    <div className="np-side right" key={'r' + p.queue[p.index + 1].id} onClick={() => { tap(); next(); }}>
+                      <Cover src={p.queue[p.index + 1].thumb} />
+                    </div>
+                  )}
+                </div>
+              )}
           </div>
         )}
 
