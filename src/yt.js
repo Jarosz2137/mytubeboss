@@ -47,10 +47,14 @@ async function nativeFetch(input, init) {
 // Desktop browser (npm run dev): go through the Vite dev proxy.
 async function devFetch(input, init) {
   const { url, method, headers, body } = await readRequest(input, init);
+  if (headers.cookie) { headers['x-yt-cookie'] = headers.cookie; delete headers.cookie; }
   return fetch('/__proxy?u=' + encodeURIComponent(url), { method, headers, body });
 }
 
 /* ---------------- session ---------------- */
+
+// Login = YouTube Music cookies pasted once (OAuth "TV" tokens get HTTP 400 from YT Music).
+const COOKIE_KEY = 'yt_cookie';
 
 let ytPromise = null;
 const listeners = new Set();
@@ -60,35 +64,18 @@ const emit = (e) => listeners.forEach((fn) => fn(e));
 export function getYT() {
   if (!ytPromise) {
     ytPromise = (async () => {
-      const yt = await Innertube.create({
+      // Old OAuth tokens break every request -> drop them.
+      await Preferences.remove({ key: CREDS_KEY });
+      const cookie = (await Preferences.get({ key: COOKIE_KEY })).value || undefined;
+      return Innertube.create({
         fetch: isNative ? nativeFetch : devFetch,
         cache: new UniversalCache(false),
-        generate_session_locally: true,
+        generate_session_locally: !cookie,
         retrieve_player: true,
         lang: 'pl',
         location: 'PL',
+        cookie,
       });
-      yt.session.on('auth-pending', (d) => emit({ type: 'pending', code: d.user_code, url: d.verification_url }));
-      yt.session.on('auth', async ({ credentials }) => {
-        await Preferences.set({ key: CREDS_KEY, value: JSON.stringify(credentials) });
-        emit({ type: 'signed-in' });
-      });
-      yt.session.on('update-credentials', async ({ credentials }) => {
-        await Preferences.set({ key: CREDS_KEY, value: JSON.stringify(credentials) });
-      });
-      yt.session.on('auth-error', (err) => emit({ type: 'error', message: err?.message || String(err) }));
-
-      const saved = (await Preferences.get({ key: CREDS_KEY })).value;
-      if (saved) {
-        try {
-          await yt.session.signIn(JSON.parse(saved));
-          emit({ type: 'signed-in' });
-        } catch (e) {
-          console.warn('Saved login failed', e);
-          await Preferences.remove({ key: CREDS_KEY });
-        }
-      }
-      return yt;
     })();
     ytPromise.catch(() => { ytPromise = null; });
   }
@@ -96,20 +83,23 @@ export function getYT() {
 }
 
 export async function isSignedIn() {
-  const yt = await getYT();
-  return !!yt.session.logged_in;
+  return !!(await Preferences.get({ key: COOKIE_KEY })).value;
 }
 
-// Starts the "enter this code on google.com/device" flow. Resolves when done.
-export async function signIn() {
-  const yt = await getYT();
-  await yt.session.signIn();
+export async function signInWithCookie(raw) {
+  let cookie = String(raw || '').trim().replace(/^cookie:\s*/i, '');
+  if (!/SAPISID=|__Secure-3PAPISID=/.test(cookie)) {
+    throw new Error('To nie wygląda na cookies z zalogowanego YouTube Music (brakuje SAPISID).');
+  }
+  await Preferences.set({ key: COOKIE_KEY, value: cookie });
+  ytPromise = null;
+  await getYT();
+  emit({ type: 'signed-in' });
 }
 
 export async function signOut() {
-  const yt = await getYT();
-  try { await yt.session.signOut(); } catch { /* ignore */ }
-  await Preferences.remove({ key: CREDS_KEY });
+  await Preferences.remove({ key: COOKIE_KEY });
+  ytPromise = null;
   emit({ type: 'signed-out' });
 }
 

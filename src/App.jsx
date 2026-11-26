@@ -177,17 +177,16 @@ function SearchView({ onOpen }) {
 
 function LibraryView({ onOpen }) {
   const [signed, setSigned] = useState(null);
-  const [pending, setPending] = useState(null);
+  const [cookie, setCookie] = useState('');
+  const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [reload, setReload] = useState(0);
 
   useEffect(() => {
     yt.isSignedIn().then(setSigned).catch((e) => setErr(e.message));
     return yt.onAuthEvent((e) => {
-      if (e.type === 'pending') setPending(e);
-      if (e.type === 'signed-in') { setPending(null); setSigned(true); setReload((x) => x + 1); }
+      if (e.type === 'signed-in') { setSigned(true); setReload((x) => x + 1); }
       if (e.type === 'signed-out') setSigned(false);
-      if (e.type === 'error') setErr(e.message);
     });
   }, []);
 
@@ -196,22 +195,25 @@ function LibraryView({ onOpen }) {
   if (signed === null) return <div className="view"><h1 className="big">Biblioteka</h1><Loader /></div>;
 
   if (!signed) {
+    const submit = async () => {
+      setErr(''); setBusy(true);
+      try { await yt.signInWithCookie(cookie); setCookie(''); } catch (e) { setErr(e.message); }
+      setBusy(false);
+    };
     return (
       <div className="view">
         <h1 className="big">Biblioteka</h1>
         <div className="login">
-          <p>Zaloguj się kontem YouTube, żeby mieć swoje playlisty, polubione i bibliotekę.</p>
-          {!pending ? (
-            <button className="primary" onClick={() => { setErr(''); yt.signIn().catch((e) => setErr(e.message)); }}>Zaloguj przez YouTube</button>
-          ) : (
-            <div className="code-box">
-              <div>Wejdź na</div>
-              <a href={pending.url} target="_blank" rel="noreferrer">{pending.url}</a>
-              <div>i wpisz kod:</div>
-              <div className="code" onClick={() => navigator.clipboard?.writeText(pending.code)}>{pending.code}</div>
-              <div className="hint">Stuknij kod, żeby skopiować. Apka sama wykryje zalogowanie.</div>
-            </div>
-          )}
+          <p>Wklej cookies z zalogowanego YouTube Music, a apka będzie widziała twoje playlisty i polubione.</p>
+          <ol className="steps">
+            <li>Na kompie otwórz <b>music.youtube.com</b> (zalogowany).</li>
+            <li>F12 / Cmd+Opt+I → zakładka <b>Network</b> → odśwież stronę.</li>
+            <li>Kliknij dowolne zapytanie <b>browse</b> albo <b>next</b> → <b>Request Headers</b> → skopiuj całą wartość <b>cookie</b>.</li>
+            <li>Wyślij to sobie na telefon (np. notatka) i wklej tutaj.</li>
+          </ol>
+          <textarea className="cookie-box" value={cookie} onChange={(e) => setCookie(e.target.value)} placeholder="SAPISID=...; __Secure-3PAPISID=...; ..." rows={4} />
+          <button className="primary" disabled={busy || !cookie.trim()} onClick={submit}>{busy ? 'Łączę…' : 'Zaloguj'}</button>
+          <p className="hint">Cookies zostają tylko w telefonie. Kto je ma, ten ma dostęp do konta, więc nie wrzucaj ich nigdzie indziej.</p>
           {err && <Err text={err} />}
         </div>
       </div>
