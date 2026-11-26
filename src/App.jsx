@@ -1,0 +1,441 @@
+import { useEffect, useRef, useState, useCallback } from 'react';
+import * as yt from './yt.js';
+import {
+  usePlayer, current, playList, addNext, jump, toggle, next, prev, seek, setMode, videoElement,
+} from './player.js';
+
+/* ---------------- helpers ---------------- */
+
+const fmt = (s) => {
+  if (!Number.isFinite(s) || s < 0) return '0:00';
+  const m = Math.floor(s / 60);
+  return `${m}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+};
+
+function kindOf(item) {
+  const id = item.id || '';
+  if (yt.isPlayable(item)) return 'track';
+  if (item.type === 'artist' || item.type === 'library_artist' || id.startsWith('UC')) return 'artist';
+  if (item.type === 'album' || id.startsWith('MPR')) return 'album';
+  return 'playlist';
+}
+
+function useAsync(fn, deps) {
+  const [s, setS] = useState({ loading: true, data: null, error: '' });
+  useEffect(() => {
+    let alive = true;
+    setS({ loading: true, data: null, error: '' });
+    fn().then(
+      (data) => alive && setS({ loading: false, data, error: '' }),
+      (e) => alive && setS({ loading: false, data: null, error: e?.message || String(e) }),
+    );
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, deps);
+  return s;
+}
+
+const Icon = {
+  play: <svg viewBox="0 0 24 24"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.6-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5Z" /></svg>,
+  pause: <svg viewBox="0 0 24 24"><rect x="6" y="5" width="4.2" height="14" rx="1.2" /><rect x="13.8" y="5" width="4.2" height="14" rx="1.2" /></svg>,
+  next: <svg viewBox="0 0 24 24"><path d="M4 6.2v11.6a1 1 0 0 0 1.55.83L13 13.6V17.8a1 1 0 0 0 1.55.83l8.2-5.8a1 1 0 0 0 0-1.66l-8.2-5.8A1 1 0 0 0 13 6.2v4.2L5.55 5.37A1 1 0 0 0 4 6.2Z" /></svg>,
+  prev: <svg viewBox="0 0 24 24" style={{ transform: 'scaleX(-1)' }}><path d="M4 6.2v11.6a1 1 0 0 0 1.55.83L13 13.6V17.8a1 1 0 0 0 1.55.83l8.2-5.8a1 1 0 0 0 0-1.66l-8.2-5.8A1 1 0 0 0 13 6.2v4.2L5.55 5.37A1 1 0 0 0 4 6.2Z" /></svg>,
+  back: <svg viewBox="0 0 24 24"><path d="M15 5 8 12l7 7" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" /></svg>,
+  down: <svg viewBox="0 0 24 24"><path d="m5 9 7 7 7-7" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" /></svg>,
+  home: <svg viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1v-9.5Z" /></svg>,
+  search: <svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" strokeWidth="2.4" /><path d="m15.5 15.5 5 5" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" /></svg>,
+  lib: <svg viewBox="0 0 24 24"><rect x="3" y="4" width="3.5" height="16" rx="1" /><rect x="8.5" y="4" width="3.5" height="16" rx="1" /><path d="m14.5 5.2 3.4-.9 3.6 15.4-3.4.8z" /></svg>,
+  queue: <svg viewBox="0 0 24 24"><path d="M4 6h12M4 11h12M4 16h8" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" fill="none" /><path d="M17 14v7l5-3.5z" /></svg>,
+  plus: <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" /></svg>,
+};
+
+function Cover({ src, round, className = '' }) {
+  const [ok, setOk] = useState(true);
+  return (
+    <div className={`cover ${round ? 'round' : ''} ${className}`}>
+      {src && ok ? <img src={src} alt="" loading="lazy" referrerPolicy="no-referrer" onError={() => setOk(false)} /> : <div className="cover-ph">♪</div>}
+    </div>
+  );
+}
+
+function Loader() {
+  return <div className="loader"><span /><span /><span /></div>;
+}
+
+function Err({ text }) {
+  return <div className="err">{text}</div>;
+}
+
+/* ---------------- building blocks ---------------- */
+
+function TrackRow({ t, list, i, onOpen, showCover = true, index }) {
+  const p = usePlayer();
+  const cur = current();
+  const active = cur && cur.id === t.id;
+  return (
+    <div className={`row ${active ? 'active' : ''}`} onClick={() => playList(list, i)}>
+      {showCover ? <Cover src={t.thumb} className="row-cover" /> : <div className="row-index">{index ?? i + 1}</div>}
+      <div className="row-text">
+        <div className="row-title">{t.title}</div>
+        <div className="row-sub">
+          {t.type === 'video' && <span className="pill">Teledysk</span>}
+          <span
+            className={t.artistId ? 'link' : ''}
+            onClick={(e) => { if (t.artistId) { e.stopPropagation(); onOpen({ type: 'artist', id: t.artistId }); } }}
+          >{t.subtitle}</span>
+        </div>
+      </div>
+      {active && p.playing ? <div className="eq"><span /><span /><span /></div> : <div className="row-dur">{t.duration ? fmt(t.duration) : ''}</div>}
+      <button className="icon-btn small" onClick={(e) => { e.stopPropagation(); addNext(t); }} aria-label="Zagraj następne">{Icon.plus}</button>
+    </div>
+  );
+}
+
+function Card({ item, onOpen }) {
+  const kind = kindOf(item);
+  return (
+    <div className="card" onClick={() => onOpen(item)}>
+      <Cover src={item.thumb} round={kind === 'artist'} />
+      <div className="card-title">{item.title}</div>
+      <div className="card-sub">{kind === 'artist' ? 'Wykonawca' : item.subtitle}</div>
+    </div>
+  );
+}
+
+function Section({ s, onOpen }) {
+  const tracks = s.items.filter(yt.isPlayable);
+  const mostlyTracks = tracks.length >= s.items.length * 0.7;
+  return (
+    <section className="section">
+      {s.title && <h2>{s.title}</h2>}
+      {mostlyTracks ? (
+        <div className="track-grid">
+          {tracks.slice(0, 12).map((t, i) => <TrackRow key={t.id + i} t={t} list={tracks} i={i} onOpen={onOpen} />)}
+        </div>
+      ) : (
+        <div className="shelf">
+          {s.items.map((it, i) => <Card key={(it.id || '') + i} item={it} onOpen={(x) => (yt.isPlayable(x) ? playList([x], 0) : onOpen(x))} />)}
+        </div>
+      )}
+    </section>
+  );
+}
+
+/* ---------------- views ---------------- */
+
+function HomeView({ onOpen }) {
+  const s = useAsync(() => yt.home(), []);
+  return (
+    <div className="view">
+      <h1 className="big">Słuchaj</h1>
+      {s.loading && <Loader />}
+      {s.error && <Err text={s.error} />}
+      {s.data?.map((sec, i) => <Section key={i} s={sec} onOpen={onOpen} />)}
+    </div>
+  );
+}
+
+function SearchView({ onOpen }) {
+  const [q, setQ] = useState('');
+  const [sug, setSug] = useState([]);
+  const [res, setRes] = useState({ loading: false, data: null, error: '' });
+  const timer = useRef();
+
+  useEffect(() => {
+    clearTimeout(timer.current);
+    if (!q.trim()) { setSug([]); return; }
+    timer.current = setTimeout(() => yt.suggestions(q).then(setSug).catch(() => {}), 220);
+  }, [q]);
+
+  const run = async (query) => {
+    const term = (query ?? q).trim();
+    if (!term) return;
+    setQ(term);
+    setSug([]);
+    document.activeElement?.blur?.();
+    setRes({ loading: true, data: null, error: '' });
+    try { setRes({ loading: false, data: await yt.search(term), error: '' }); } catch (e) { setRes({ loading: false, data: null, error: e?.message || String(e) }); }
+  };
+
+  return (
+    <div className="view">
+      <h1 className="big">Szukaj</h1>
+      <form className="searchbar" onSubmit={(e) => { e.preventDefault(); run(); }}>
+        {Icon.search}
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Wykonawcy, utwory, albumy" enterKeyHint="search" autoCorrect="off" autoCapitalize="off" />
+        {q && <button type="button" className="clear" onClick={() => { setQ(''); setRes({ loading: false, data: null, error: '' }); }}>✕</button>}
+      </form>
+      {sug.length > 0 && (
+        <div className="suggest">{sug.map((s) => <div key={s} onClick={() => run(s)}>{Icon.search}<span>{s}</span></div>)}</div>
+      )}
+      {res.loading && <Loader />}
+      {res.error && <Err text={res.error} />}
+      {res.data?.map((sec, i) => <Section key={i} s={sec} onOpen={onOpen} />)}
+    </div>
+  );
+}
+
+function LibraryView({ onOpen }) {
+  const [signed, setSigned] = useState(null);
+  const [pending, setPending] = useState(null);
+  const [err, setErr] = useState('');
+  const [reload, setReload] = useState(0);
+
+  useEffect(() => {
+    yt.isSignedIn().then(setSigned).catch((e) => setErr(e.message));
+    return yt.onAuthEvent((e) => {
+      if (e.type === 'pending') setPending(e);
+      if (e.type === 'signed-in') { setPending(null); setSigned(true); setReload((x) => x + 1); }
+      if (e.type === 'signed-out') setSigned(false);
+      if (e.type === 'error') setErr(e.message);
+    });
+  }, []);
+
+  const lib = useAsync(() => (signed ? yt.library() : Promise.resolve([])), [signed, reload]);
+
+  if (signed === null) return <div className="view"><h1 className="big">Biblioteka</h1><Loader /></div>;
+
+  if (!signed) {
+    return (
+      <div className="view">
+        <h1 className="big">Biblioteka</h1>
+        <div className="login">
+          <p>Zaloguj się kontem YouTube, żeby mieć swoje playlisty, polubione i bibliotekę.</p>
+          {!pending ? (
+            <button className="primary" onClick={() => { setErr(''); yt.signIn().catch((e) => setErr(e.message)); }}>Zaloguj przez YouTube</button>
+          ) : (
+            <div className="code-box">
+              <div>Wejdź na</div>
+              <a href={pending.url} target="_blank" rel="noreferrer">{pending.url}</a>
+              <div>i wpisz kod:</div>
+              <div className="code" onClick={() => navigator.clipboard?.writeText(pending.code)}>{pending.code}</div>
+              <div className="hint">Stuknij kod, żeby skopiować. Apka sama wykryje zalogowanie.</div>
+            </div>
+          )}
+          {err && <Err text={err} />}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="view">
+      <h1 className="big">Biblioteka</h1>
+      <div className="lib-quick">
+        <div className="lib-tile liked" onClick={() => onOpen({ type: 'playlist', id: 'LM', title: 'Polubione' })}>♥<span>Polubione utwory</span></div>
+      </div>
+      {lib.loading && <Loader />}
+      {lib.error && <Err text={lib.error} />}
+      {lib.data?.map((sec, i) => <Section key={i} s={sec} onOpen={onOpen} />)}
+      <button className="ghost" onClick={() => yt.signOut()}>Wyloguj</button>
+    </div>
+  );
+}
+
+function ArtistView({ id, onOpen }) {
+  const s = useAsync(() => yt.artist(id), [id]);
+  if (s.loading) return <div className="view"><Loader /></div>;
+  if (s.error) return <div className="view"><Err text={s.error} /></div>;
+  const a = s.data;
+  const firstTracks = a.sections.find((x) => x.items.some(yt.isPlayable));
+  return (
+    <div className="view no-pad-top">
+      <div className="hero" style={{ backgroundImage: a.thumb ? `url(${a.thumb})` : undefined }}>
+        <div className="hero-fade" />
+        <h1 className="hero-title">{a.title}</h1>
+        {firstTracks && (
+          <button className="play-fab" onClick={() => playList(firstTracks.items.filter(yt.isPlayable), 0)}>{Icon.play}</button>
+        )}
+      </div>
+      {a.sections.map((sec, i) => <Section key={i} s={sec} onOpen={onOpen} />)}
+      {a.description && <p className="about">{a.description}</p>}
+    </div>
+  );
+}
+
+function CollectionView({ id, kind, onOpen }) {
+  const s = useAsync(() => (kind === 'album' ? yt.album(id) : yt.playlist(id)), [id, kind]);
+  if (s.loading) return <div className="view"><Loader /></div>;
+  if (s.error) return <div className="view"><Err text={s.error} /></div>;
+  const c = s.data;
+  const total = c.tracks.reduce((a, t) => a + (t.duration || 0), 0);
+  return (
+    <div className="view">
+      <div className="coll-head">
+        <div className="coll-bg" style={{ backgroundImage: c.thumb ? `url(${c.thumb})` : undefined }} />
+        <Cover src={c.thumb} className="coll-cover" />
+        <h1>{c.title}</h1>
+        <div className="coll-sub">{c.subtitle}</div>
+        <div className="coll-meta">{c.meta || `${c.tracks.length} utworów${total ? ' · ' + Math.round(total / 60) + ' min' : ''}`}</div>
+        <div className="coll-actions">
+          <button className="primary" onClick={() => playList(c.tracks, 0)}>{Icon.play} Odtwórz</button>
+          <button className="secondary" onClick={() => {
+            const sh = c.tracks.slice().sort(() => Math.random() - 0.5);
+            playList(sh, 0);
+          }}>⤮ Losowo</button>
+        </div>
+      </div>
+      <div className="tracklist">
+        {c.tracks.map((t, i) => <TrackRow key={t.id + i} t={t} list={c.tracks} i={i} onOpen={onOpen} showCover={kind !== 'album'} />)}
+      </div>
+      {c.more.map((sec, i) => <Section key={i} s={sec} onOpen={onOpen} />)}
+    </div>
+  );
+}
+
+/* ---------------- player UI ---------------- */
+
+function MiniPlayer({ onExpand }) {
+  const p = usePlayer();
+  const t = current();
+  if (!t) return null;
+  const pct = p.duration ? (p.time / p.duration) * 100 : 0;
+  return (
+    <div className="mini" onClick={onExpand}>
+      <div className="mini-progress" style={{ width: pct + '%' }} />
+      <Cover src={t.thumb} className="mini-cover" />
+      <div className="mini-text">
+        <div className="mini-title">{t.title}</div>
+        <div className="mini-sub">{p.error ? p.error : t.subtitle}</div>
+      </div>
+      <button className="icon-btn" onClick={(e) => { e.stopPropagation(); toggle(); }}>{p.loading ? <span className="spin" /> : p.playing ? Icon.pause : Icon.play}</button>
+      <button className="icon-btn" onClick={(e) => { e.stopPropagation(); next(); }}>{Icon.next}</button>
+    </div>
+  );
+}
+
+function Scrubber() {
+  const p = usePlayer();
+  const [drag, setDrag] = useState(null);
+  const val = drag ?? p.time;
+  const max = p.duration || 1;
+  return (
+    <div className="scrub">
+      <input
+        type="range" min={0} max={max} step={0.1} value={Math.min(val, max)}
+        style={{ '--pct': `${(Math.min(val, max) / max) * 100}%` }}
+        onChange={(e) => setDrag(+e.target.value)}
+        onPointerUp={() => { if (drag != null) seek(drag); setDrag(null); }}
+        onTouchEnd={() => { if (drag != null) seek(drag); setDrag(null); }}
+      />
+      <div className="scrub-times"><span>{fmt(val)}</span><span>-{fmt(Math.max(0, (p.duration || 0) - val))}</span></div>
+    </div>
+  );
+}
+
+function NowPlaying({ open, onClose, onOpen }) {
+  const p = usePlayer();
+  const t = current();
+  const videoBox = useRef();
+  const [showQueue, setShowQueue] = useState(false);
+  const touch = useRef(null);
+
+  // Move the single <video> engine into view when in video mode.
+  useEffect(() => {
+    const holder = document.getElementById('engine-holder');
+    if (open && p.mode === 'video' && videoBox.current) videoBox.current.appendChild(videoElement);
+    else if (holder && videoElement.parentElement !== holder) holder.appendChild(videoElement);
+  }, [open, p.mode]);
+
+  const onTouchStart = (e) => { touch.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }; };
+  const onTouchEnd = (e) => {
+    if (!touch.current) return;
+    const dx = e.changedTouches[0].clientX - touch.current.x;
+    const dy = e.changedTouches[0].clientY - touch.current.y;
+    if (dy > 110 && Math.abs(dx) < 80) onClose();
+    else if (Math.abs(dx) > 90 && Math.abs(dy) < 60) (dx < 0 ? next() : prev());
+    touch.current = null;
+  };
+
+  if (!t) return null;
+  return (
+    <div className={`np ${open ? 'open' : ''}`}>
+      <div className="np-bg" style={{ backgroundImage: t.thumb ? `url(${t.thumb})` : undefined }} />
+      <div className="np-inner">
+        <div className="np-top">
+          <button className="icon-btn" onClick={onClose}>{Icon.down}</button>
+          <div className="seg">
+            <button className={p.mode === 'audio' ? 'on' : ''} onClick={() => setMode('audio')}>Utwór</button>
+            <button className={p.mode === 'video' ? 'on' : ''} onClick={() => setMode('video')}>Teledysk</button>
+          </div>
+          <button className={`icon-btn ${showQueue ? 'lit' : ''}`} onClick={() => setShowQueue((x) => !x)}>{Icon.queue}</button>
+        </div>
+
+        {showQueue ? (
+          <div className="np-queue">
+            <h3>Kolejka</h3>
+            {p.queue.map((q, i) => (
+              <div key={q.id + i} className={`row ${i === p.index ? 'active' : ''} ${i < p.index ? 'past' : ''}`} onClick={() => jump(i)}>
+                <Cover src={q.thumb} className="row-cover" />
+                <div className="row-text"><div className="row-title">{q.title}</div><div className="row-sub">{q.subtitle}</div></div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="np-art" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+            {p.mode === 'video'
+              ? <div className="np-video" ref={videoBox} />
+              : <Cover src={t.thumb} className={`np-cover ${p.playing ? 'big' : ''}`} />}
+          </div>
+        )}
+
+        <div className="np-info">
+          <div className="np-title">{t.title}</div>
+          <div
+            className={`np-artist ${t.artistId ? 'link' : ''}`}
+            onClick={() => { if (t.artistId) { onClose(); onOpen({ type: 'artist', id: t.artistId }); } }}
+          >{t.subtitle}</div>
+          {p.error && <div className="np-error">{p.error}</div>}
+        </div>
+        <Scrubber />
+        <div className="np-controls">
+          <button className="icon-btn large" onClick={prev}>{Icon.prev}</button>
+          <button className="icon-btn huge" onClick={toggle}>{p.loading ? <span className="spin big" /> : p.playing ? Icon.pause : Icon.play}</button>
+          <button className="icon-btn large" onClick={next}>{Icon.next}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ---------------- app shell ---------------- */
+
+export default function App() {
+  const [tab, setTab] = useState('home');
+  const [stack, setStack] = useState([]);
+  const [npOpen, setNpOpen] = useState(false);
+  const scroller = useRef();
+
+  const open = useCallback((item) => {
+    if (yt.isPlayable(item)) return playList([item], 0);
+    setStack((s) => [...s, { kind: kindOf(item), id: item.id }]);
+    scroller.current?.scrollTo(0, 0);
+  }, []);
+  const back = () => setStack((s) => s.slice(0, -1));
+  const switchTab = (t) => { setTab(t); setStack([]); scroller.current?.scrollTo(0, 0); };
+
+  const top = stack[stack.length - 1];
+
+  return (
+    <div className="app">
+      <div id="engine-holder" className="engine-holder" />
+      <main ref={scroller} className="scroller">
+        {top && <button className="back" onClick={back}>{Icon.back}</button>}
+        <div style={{ display: top ? 'none' : 'block' }}>
+          <div style={{ display: tab === 'home' ? 'block' : 'none' }}><HomeView onOpen={open} /></div>
+          <div style={{ display: tab === 'search' ? 'block' : 'none' }}><SearchView onOpen={open} /></div>
+          <div style={{ display: tab === 'library' ? 'block' : 'none' }}><LibraryView onOpen={open} /></div>
+        </div>
+        {top?.kind === 'artist' && <ArtistView key={top.id} id={top.id} onOpen={open} />}
+        {(top?.kind === 'album' || top?.kind === 'playlist') && <CollectionView key={top.id} id={top.id} kind={top.kind} onOpen={open} />}
+      </main>
+      <MiniPlayer onExpand={() => setNpOpen(true)} />
+      <nav className="tabs">
+        <button className={tab === 'home' ? 'on' : ''} onClick={() => switchTab('home')}>{Icon.home}<span>Główna</span></button>
+        <button className={tab === 'search' ? 'on' : ''} onClick={() => switchTab('search')}>{Icon.search}<span>Szukaj</span></button>
+        <button className={tab === 'library' ? 'on' : ''} onClick={() => switchTab('library')}>{Icon.lib}<span>Biblioteka</span></button>
+      </nav>
+      <NowPlaying open={npOpen} onClose={() => setNpOpen(false)} onOpen={open} />
+    </div>
+  );
+}

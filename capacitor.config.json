@@ -1,0 +1,13 @@
+{
+  "appId": "com.egzey.mytubeboss",
+  "appName": "MyTube Boss",
+  "webDir": "dist",
+  "ios": {
+    "contentInset": "never",
+    "allowsLinkPreview": false,
+    "scrollEnabled": true
+  },
+  "plugins": {
+    "CapacitorHttp": { "enabled": false }
+  }
+}
