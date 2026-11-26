@@ -441,3 +441,13 @@ h2 { font-size: 21px; font-weight: 700; margin: 26px 0 10px; letter-spacing: -0.
   animation: gridMove 1.6s linear infinite; animation-play-state: paused; will-change: transform; }
 .np.is-playing .np-grid::before { animation-play-state: running; }
 @keyframes gridMove { from { transform: translateY(0); } to { transform: translateY(46px); } }
+
+/* ===== new scrubber ===== */
+.scrub { margin-top: 14px; padding: 12px 0 0; touch-action: none; }
+.scrub-track { position: relative; height: 6px; border-radius: 3px; background: rgba(255,255,255,.22); overflow: hidden;
+  transition: height .2s cubic-bezier(.2,1.3,.3,1), border-radius .2s; }
+.scrub-fill { position: absolute; inset: 0; transform-origin: left; background: rgba(255,255,255,.85); }
+.scrub.active .scrub-track { height: 12px; border-radius: 6px; }
+.scrub.active .scrub-fill { background: #fff; }
+.scrub-times { transition: transform .2s, color .2s; }
+.scrub.active .scrub-times { color: #fff; transform: scale(1.04); }

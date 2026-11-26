@@ -476,21 +476,48 @@ function Visualizer() {
   );
 }
 
+// Apple-Music-style scrubber: grab anywhere, drag is relative (no jump on touch),
+// bar thickens while dragging, tap jumps to the spot.
 function Scrubber() {
-  const p = useTime();
+  const { time, duration } = useTime();
   const [drag, setDrag] = useState(null);
-  const val = drag ?? p.time;
-  const max = p.duration || 1;
+  const bar = useRef();
+  const g = useRef(null);
+  const max = duration || 1;
+  const clamp = (v) => Math.max(0, Math.min(max, v));
+  const val = drag ?? time;
+  const onStart = (e) => {
+    const r = bar.current.getBoundingClientRect();
+    g.current = { x: e.touches[0].clientX, left: r.left, w: r.width, start: time, moved: false, v: time };
+  };
+  const onMove = (e) => {
+    const s0 = g.current;
+    if (!s0) return;
+    const dx = e.touches[0].clientX - s0.x;
+    if (!s0.moved && Math.abs(dx) < 4) return;
+    if (!s0.moved) { s0.moved = true; tap(); }
+    s0.v = clamp(s0.start + (dx / s0.w) * max);
+    setDrag(s0.v);
+  };
+  const onEnd = (e) => {
+    const s0 = g.current;
+    g.current = null;
+    if (!s0) return;
+    if (!s0.moved) {
+      const x = (e.changedTouches?.[0]?.clientX ?? s0.x) - s0.left;
+      seek(clamp((x / s0.w) * max));
+      tap();
+    } else {
+      seek(s0.v);
+      tap(ImpactStyle.Medium);
+    }
+    setDrag(null);
+  };
   return (
-    <div className="scrub">
-      <input
-        type="range" min={0} max={max} step={0.1} value={Math.min(val, max)}
-        style={{ '--pct': `${(Math.min(val, max) / max) * 100}%` }}
-        onChange={(e) => setDrag(+e.target.value)}
-        onPointerUp={() => { if (drag != null) seek(drag); setDrag(null); }}
-        onTouchEnd={() => { if (drag != null) seek(drag); setDrag(null); }}
-      />
-      <div className="scrub-times"><span>{fmt(val)}</span><span>-{fmt(Math.max(0, (p.duration || 0) - val))}</span></div>
+    <div className={`scrub ${drag != null ? 'active' : ''}`} ref={bar}
+      onTouchStart={onStart} onTouchMove={onMove} onTouchEnd={onEnd} onTouchCancel={onEnd}>
+      <div className="scrub-track"><div className="scrub-fill" style={{ transform: `scaleX(${val / max})` }} /></div>
+      <div className="scrub-times"><span>{fmt(val)}</span><span>-{fmt(Math.max(0, (duration || 0) - val))}</span></div>
     </div>
   );
 }

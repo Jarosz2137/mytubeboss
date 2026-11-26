@@ -275,7 +275,9 @@ export function prev() {
 }
 
 export function seek(sec) {
-  if (Number.isFinite(sec)) el.currentTime = sec;
+  if (!Number.isFinite(sec)) return;
+  el.currentTime = sec;
+  setTime({ time: sec }); // no flicker back to the old position
 }
 
 export function setMode(mode) {
