@@ -35,6 +35,12 @@ const set = (patch) => {
   subs.forEach((f) => f());
 };
 export const usePlayer = () => useSyncExternalStore((f) => { subs.add(f); return () => subs.delete(f); }, () => state);
+
+// Playback position lives in its own tiny store so the whole UI doesn't re-render 4x/second.
+let timeState = { time: 0, duration: 0 };
+const tsubs = new Set();
+const setTime = (patch) => { timeState = { ...timeState, ...patch }; tsubs.forEach((f) => f()); };
+export const useTime = () => useSyncExternalStore((f) => { tsubs.add(f); return () => tsubs.delete(f); }, () => timeState);
 export const current = () => state.queue[state.index];
 export const videoElement = videoEl;
 
@@ -91,7 +97,8 @@ async function load(startAt = 0) {
   const token = ++loadToken;
   const mode = state.mode;
   const log = [];
-  set({ loading: true, error: '', time: startAt, duration: track.duration || 0 });
+  set({ loading: true, error: '' });
+  setTime({ time: startAt, duration: track.duration || 0 });
   updateMediaSession();
   suppressErrors = true;
 
@@ -261,7 +268,7 @@ on('pause', () => set({ playing: false }));
 on('waiting', () => set({ loading: true }));
 on('canplay', () => set({ loading: false }));
 on('timeupdate', () => {
-  set({ time: el.currentTime, duration: Number.isFinite(el.duration) ? el.duration : state.duration });
+  setTime({ time: el.currentTime, duration: Number.isFinite(el.duration) ? el.duration : timeState.duration });
   updatePosition();
 });
 on('ended', () => next(true));

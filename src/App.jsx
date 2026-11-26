@@ -5,7 +5,7 @@ import { useCoverColors } from './colors.js';
 import { getLogs, clearLogs } from './debuglog.js';
 import {
   usePlayer, current, playList, addNext, jump, toggle, next, prev, seek, setMode, videoElement,
-  cycleRepeat, toggleShuffle, toggleLike,
+  cycleRepeat, toggleShuffle, toggleLike, useTime,
 } from './player.js';
 
 /* ---------------- helpers ---------------- */
@@ -173,7 +173,7 @@ function LoopShelf({ items, onOpen }) {
         const cov = c.firstChild;
         if (cov) {
           cov.style.transform = `perspective(600px) rotateY(${d * -14}deg) scale(${1 - Math.abs(d) * 0.1})`;
-          cov.style.filter = `brightness(${1 - Math.abs(d) * 0.25})`;
+          cov.style.opacity = String(1 - Math.abs(d) * 0.3);
         }
       }
     };
@@ -434,12 +434,17 @@ function CollectionView({ id, kind, onOpen }) {
 
 /* ---------------- player UI ---------------- */
 
+function MiniProgress() {
+  const { time, duration } = useTime();
+  const pct = duration ? (time / duration) * 100 : 0;
+  return <div className="mini-progress" style={{ transform: `scaleX(${pct / 100})` }} />;
+}
+
 function MiniPlayer({ onExpand, hidden, onDrag, onDragEnd }) {
   const p = usePlayer();
   const t = current();
   const startY = useRef(null);
   if (!t) return null;
-  const pct = p.duration ? (p.time / p.duration) * 100 : 0;
   return (
     <div
       className={`mini ${hidden ? 'mini-hidden' : ''}`}
@@ -447,9 +452,10 @@ function MiniPlayer({ onExpand, hidden, onDrag, onDragEnd }) {
       onTouchStart={(e) => { if (e.target.closest('button')) return; startY.current = e.touches[0].clientY; }}
       onTouchMove={(e) => { if (startY.current != null) onDrag(Math.min(0, e.touches[0].clientY - startY.current)); }}
       onTouchEnd={(e) => { if (startY.current != null) { const dy = e.changedTouches[0].clientY - startY.current; startY.current = null; onDragEnd(dy); } }}
+      onTouchCancel={() => { if (startY.current != null) { startY.current = null; onDragEnd(0.1); } }}
     >
       <div className="mini-glow" style={{ backgroundImage: t.thumb ? `url(${t.thumb})` : undefined }} />
-      <div className="mini-progress" style={{ width: pct + '%' }} />
+      <MiniProgress />
       <Cover key={t.id} src={t.thumb} className={`mini-cover ${p.playing ? 'spin-in' : ''}`} />
       <div className="mini-text" key={'t' + t.id}>
         <div className="mini-title">{t.title}</div>
@@ -471,7 +477,7 @@ function Visualizer() {
 }
 
 function Scrubber() {
-  const p = usePlayer();
+  const p = useTime();
   const [drag, setDrag] = useState(null);
   const val = drag ?? p.time;
   const max = p.duration || 1;
@@ -560,7 +566,7 @@ function NowPlaying({ open, onClose, onOpen, sheetRef }) {
     <div
       ref={sheet}
       className={`np ${open ? 'open' : ''} ${p.playing ? 'is-playing' : ''}`}
-      onTouchStart={onStart} onTouchMove={onMove} onTouchEnd={onEnd}
+      onTouchStart={onStart} onTouchMove={onMove} onTouchEnd={onEnd} onTouchCancel={onEnd}
     >
       <div className="np-bg" key={'bg' + t.id} style={{ backgroundImage: t.thumb ? `url(${t.thumb})` : undefined }} />
       <div className="np-blobs"><i className="b1" /><i className="b2" /><i className="b3" /></div>
@@ -677,9 +683,9 @@ export default function App() {
   const switchTab = (t) => { setTab(t); setStack([]); scroller.current?.scrollTo(0, 0); };
 
   const top = stack[stack.length - 1];
-  const p = usePlayer();
-  const cur = p.queue[p.index];
-  const cols = useCoverColors(cur?.thumb);
+  const pl = usePlayer();
+  const curThumb = pl.queue[pl.index]?.thumb;
+  const cols = useCoverColors(curThumb);
   const vars = cols ? { '--c1': cols[0], '--c2': cols[1], '--c3': cols[2] } : {};
 
   return (

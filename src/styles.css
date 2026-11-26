@@ -410,3 +410,34 @@ h2 { font-size: 21px; font-weight: 700; margin: 26px 0 10px; letter-spacing: -0.
 .np.is-playing .viz i { animation-play-state: running; }
 @keyframes vz { 0% { transform: scaleY(.12); } 50% { transform: scaleY(.85); } 100% { transform: scaleY(.3); } }
 .np:not(.is-playing) .viz i { transform: scaleY(.12); }
+
+/* ================= PERFORMANCE / GESTURES ================= */
+/* own the gestures so iOS doesn't cancel them for page bounce */
+.mini { touch-action: none; will-change: transform, opacity; }
+.np { touch-action: none; will-change: transform, opacity; backface-visibility: hidden; }
+.np-queue { touch-action: pan-y; }
+.scrub input { touch-action: pan-x; }
+.mini-progress { width: 100% !important; transform-origin: left; transition: transform .25s linear; }
+
+/* cheap blobs: soft radial gradients, transform-only animation, no live blur/blend */
+.np-blobs { filter: none; inset: -20%; opacity: .9; }
+.np-blobs i { mix-blend-mode: normal; opacity: .55; width: 80%; height: 80%; will-change: transform;
+  background: none !important; }
+.np-blobs .b1 { background-image: radial-gradient(closest-side, var(--c1), transparent) !important; }
+.np-blobs .b2 { background-image: radial-gradient(closest-side, var(--c2), transparent) !important; }
+.np-blobs .b3 { background-image: radial-gradient(closest-side, var(--c3), transparent) !important; }
+.np-grain { mix-blend-mode: normal; opacity: .05; }
+.np-bg { will-change: opacity; }
+.np-grid { will-change: background-position; }
+.mini-glow { filter: none; opacity: .25; background-size: 300% 300%; }
+.viz i { will-change: transform; }
+.shelf.loop .card .cover { transition: none; }
+/* grid: move a child with transform instead of repainting background */
+.np-grid { background: none; animation: none; overflow: hidden; }
+.np-grid::before { content: ''; position: absolute; left: 0; right: 0; top: -46px; bottom: 0;
+  background:
+    repeating-linear-gradient(90deg, color-mix(in srgb, var(--c1) 80%, white) 0 1.5px, transparent 1.5px 60px),
+    repeating-linear-gradient(0deg, color-mix(in srgb, var(--c1) 80%, white) 0 1.5px, transparent 1.5px 46px);
+  animation: gridMove 1.6s linear infinite; animation-play-state: paused; will-change: transform; }
+.np.is-playing .np-grid::before { animation-play-state: running; }
+@keyframes gridMove { from { transform: translateY(0); } to { transform: translateY(46px); } }
