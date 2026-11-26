@@ -593,6 +593,12 @@ function NowPlaying({ open, onClose, onOpen, sheetRef }) {
   const [slide, setSlide] = useState('');
   const g = useRef(null);
   const [beat, setBeatState] = useState(beatOn());
+  const goFull = () => {
+    tap();
+    const v = videoElement;
+    if (v.webkitEnterFullscreen) v.webkitEnterFullscreen(); // iOS native player, rotates to landscape
+    else v.requestFullscreen?.();
+  };
   useEffect(() => onBeat(setBeatState), []);
   useEffect(() => { setBeatTarget(sheet.current); }, [t?.id]);
 
@@ -719,7 +725,13 @@ function NowPlaying({ open, onClose, onOpen, sheetRef }) {
         ) : (
           <div className="np-art">
             {p.mode === 'video'
-              ? <div className="np-video" ref={videoBox} />
+              ? (
+                <div className="np-video" ref={videoBox} onDoubleClick={goFull}>
+                  <button className="np-full" onClick={(e) => { e.stopPropagation(); goFull(); }} aria-label="Pełny ekran">
+                    <svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
+                  </button>
+                </div>
+              )
               : (
                 <div className="np-sway"><div className="np-strip">
                   {p.queue[p.index - 1] && (

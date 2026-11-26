@@ -536,3 +536,11 @@ h2 { font-size: 21px; font-weight: 700; margin: 26px 0 10px; letter-spacing: -0.
 .refreshing { position: sticky; top: 0; height: 2px; margin: 0 -20px 8px; overflow: hidden; z-index: 5; }
 .refreshing::before { content: ''; position: absolute; inset: 0; width: 40%; background: linear-gradient(90deg, transparent, #ff5e8a, #ffe08a, transparent); animation: refreshRun 1s linear infinite; }
 @keyframes refreshRun { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
+
+/* ===== bigger music videos: edge to edge, taller, fullscreen button ===== */
+.np-video { position: relative; width: calc(100% + 48px); margin: 0 -24px; border-radius: 0; aspect-ratio: 16/9; height: auto;
+  box-shadow: 0 30px 80px rgba(0,0,0,.7), 0 0 120px -30px var(--c1); }
+.np-video video { width: 100%; height: 100%; object-fit: contain; background: #000; display: block; }
+.np-full { position: absolute; right: 12px; bottom: 12px; z-index: 2; width: 44px; height: 44px; border-radius: 50%; border: 0;
+  display: flex; align-items: center; justify-content: center; color: #fff; background: rgba(0,0,0,.45); backdrop-filter: blur(6px); }
+.np-full svg { width: 22px; height: 22px; }
