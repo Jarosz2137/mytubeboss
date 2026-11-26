@@ -65,7 +65,7 @@ async function nativeFetch(input, init) {
   if (!binary && typeof body === 'string' && ct.includes('json')) {
     try { data = JSON.parse(body); } catch { /* keep string */ }
   }
-  const binResp = /googlevideo\.com|ytimg\.com/.test(url);
+  const binResp = /googlevideo\.com|ytimg\.com|googleusercontent\.com|ggpht\.com/.test(url);
   const r = await CapacitorHttp.request({ url, method, headers, data, dataType, responseType: binResp ? 'arraybuffer' : 'text' });
   if (binResp) {
     const b64 = typeof r.data === 'string' ? r.data : '';
@@ -511,4 +511,11 @@ export async function sabrAudioBlobUrl(id, onProgress) {
   const blob = new Blob(parts, { type: mime });
   if (blob.size < 10000) throw new Error('SABR: za mały plik (' + blob.size + ' B)');
   return URL.createObjectURL(blob);
+}
+
+// Image bytes as a same-origin blob URL (so a canvas can read the pixels).
+export async function imageObjectUrl(url) {
+  const r = await (isNative ? nativeFetch(url) : devFetch(url));
+  if (!r.ok) throw new Error('img ' + r.status);
+  return URL.createObjectURL(await r.blob());
 }

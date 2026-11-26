@@ -188,3 +188,73 @@ h2 { font-size: 21px; font-weight: 700; margin: 26px 0 10px; letter-spacing: -0.
 .cookie-box { width: 100%; background: var(--bg3); border: 0; border-radius: 12px; padding: 12px; font-size: 13px; font-family: ui-monospace, Menlo, monospace;
   resize: vertical; outline: none; margin-bottom: 12px; user-select: text; -webkit-user-select: text; }
 .primary:disabled { opacity: .45; }
+
+/* ================= BRANDING / WOW ================= */
+:root {
+  --c1: #ff2d55; --c2: #8a2be2; --c3: #ff9f43;
+  --sunset: linear-gradient(180deg, #ffe08a 0%, #ffb347 28%, #ff5e8a 62%, #b44dff 100%);
+}
+.app { transition: --c1 .8s; }
+
+/* Wordmark: original Vice-sunset style (not any game's logo) */
+.wm { position: relative; display: inline-flex; flex-direction: column; align-items: flex-start; line-height: .9; user-select: none; }
+.wm-egzey { font: 700 11px/1 -apple-system, system-ui, sans-serif; letter-spacing: .55em; color: rgba(255,255,255,.75); margin: 0 0 4px 4px; }
+.wm-mytube { font-family: 'Yellowtail', cursive; font-size: 34px; color: #ff7ab6; transform: rotate(-7deg) translate(10px, 4px); z-index: 2; margin-bottom: -4px;
+  text-shadow: 0 0 6px rgba(255,80,160,.9), 0 0 18px rgba(255,60,140,.6), 2px 2px 0 #2a0b3d; }
+.wm-boss { font-family: 'Anton', Impact, sans-serif; font-size: 58px; letter-spacing: .02em; transform: skewX(-10deg); margin-top: -2px;
+  background: var(--sunset); -webkit-background-clip: text; background-clip: text; color: transparent;
+  -webkit-text-stroke: 1.5px #1a0b2e; filter: drop-shadow(3px 4px 0 #1a0b2e) drop-shadow(0 0 22px rgba(255,94,138,.35)); }
+.wm-xl .wm-egzey { font-size: 14px; }
+.wm-xl .wm-mytube { font-size: 52px; }
+.wm-xl .wm-boss { font-size: 96px; -webkit-text-stroke: 2px #1a0b2e; filter: drop-shadow(5px 6px 0 #1a0b2e) drop-shadow(0 0 40px rgba(255,94,138,.5)); }
+
+.home-head { display: flex; align-items: flex-end; justify-content: space-between; margin: 30px 0 8px; }
+.greet { color: var(--fg2); font-size: 14px; font-weight: 600; padding-bottom: 10px; }
+
+/* Splash */
+.splash { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; overflow: hidden;
+  background: radial-gradient(120% 80% at 50% 110%, #ff5e8a 0%, #6a1b9a 45%, #0a0a0c 80%); transition: opacity .6s ease, transform .6s ease; }
+.splash.hide { opacity: 0; transform: scale(1.06); pointer-events: none; }
+.splash .wm { animation: wmIn .9s cubic-bezier(.2,1.4,.3,1) both; }
+.sun { position: absolute; width: 340px; height: 340px; border-radius: 50%; bottom: -120px;
+  background: repeating-linear-gradient(180deg, #ffd56b 0 18px, transparent 18px 26px), linear-gradient(#ffd56b, #ff5e8a);
+  -webkit-mask: linear-gradient(#000 40%, transparent); mask: linear-gradient(#000 40%, transparent); opacity: .85; animation: sunUp 1.2s ease-out both; }
+@keyframes wmIn { from { opacity: 0; transform: scale(.6) rotate(-4deg); } to { opacity: 1; transform: none; } }
+@keyframes sunUp { from { transform: translateY(120px); opacity: 0; } to { transform: none; opacity: .85; } }
+
+/* Mini player glow in cover colors */
+.mini { box-shadow: 0 8px 30px rgba(0,0,0,.45), 0 0 0 .5px rgba(255,255,255,.06), 0 6px 30px -6px var(--c1); }
+.mini-progress { background: linear-gradient(90deg, var(--c1), var(--c3)); height: 2.5px; }
+.tabs button.on { color: var(--c1); filter: saturate(1.4) brightness(1.2); }
+
+/* Now playing: living, breathing background from cover colors */
+.np-bg { opacity: .55; }
+.np-blobs { position: absolute; inset: -30%; filter: blur(60px) saturate(1.5); opacity: .85; pointer-events: none; }
+.np-blobs i { position: absolute; width: 60%; height: 60%; border-radius: 50%; mix-blend-mode: screen; opacity: .55; animation: float 18s ease-in-out infinite; }
+.np-blobs .b1 { background: var(--c1); top: 5%; left: 0; }
+.np-blobs .b2 { background: var(--c2); top: 35%; right: -5%; animation-duration: 23s; animation-delay: -6s; }
+.np-blobs .b3 { background: var(--c3); bottom: 0; left: 20%; animation-duration: 27s; animation-delay: -12s; }
+.np:not(.is-playing) .np-blobs i { animation-play-state: paused; }
+@keyframes float {
+  0%,100% { transform: translate(0,0) scale(1); }
+  33% { transform: translate(12%, -8%) scale(1.15); }
+  66% { transform: translate(-10%, 10%) scale(.9); }
+}
+.np-grain { position: absolute; inset: 0; pointer-events: none; opacity: .08; mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence baseFrequency='.9' numOctaves='2'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>"); }
+.np-cover { box-shadow: 0 30px 70px -10px rgba(0,0,0,.65), 0 0 80px -20px var(--c1); transition: width .5s cubic-bezier(.2,1.3,.3,1), box-shadow .8s; }
+.np-cover.big { box-shadow: 0 40px 90px -10px rgba(0,0,0,.7), 0 0 120px -10px var(--c1); }
+.np .seg button.on { box-shadow: 0 4px 14px -4px var(--c1); }
+.scrub input { background: linear-gradient(to right, #fff var(--pct), rgba(255,255,255,.22) var(--pct)); }
+
+/* Cards: subtle lift + color halo */
+.card .cover { transition: transform .25s cubic-bezier(.2,1.4,.3,1), box-shadow .25s; }
+.card:active .cover { transform: scale(.95); }
+.section h2 { background: linear-gradient(90deg, #fff, rgba(255,255,255,.7)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.primary { background: linear-gradient(135deg, var(--c1), var(--c2)); box-shadow: 0 8px 24px -8px var(--c1); }
+.row.active .row-title { color: var(--c1); filter: brightness(1.25) saturate(1.3); }
+.eq span { background: var(--c1); }
+
+/* page entrance */
+.view { animation: pageIn .35s cubic-bezier(.2,.9,.3,1) both; }
+@keyframes pageIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }

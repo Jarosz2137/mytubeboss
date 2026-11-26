@@ -1,10 +1,49 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import * as yt from './yt.js';
+import { Haptics, ImpactStyle } from '@capacitor/haptics';
+import { useCoverColors } from './colors.js';
 import {
   usePlayer, current, playList, addNext, jump, toggle, next, prev, seek, setMode, videoElement,
 } from './player.js';
 
 /* ---------------- helpers ---------------- */
+
+const tap = (style = ImpactStyle.Light) => { Haptics.impact({ style }).catch(() => {}); };
+
+function Wordmark({ size = 'md' }) {
+  return (
+    <div className={`wm wm-${size}`} aria-label="Egzey MyTube Boss">
+      <span className="wm-egzey">EGZEY</span>
+      <span className="wm-mytube">MyTube</span>
+      <span className="wm-boss">BOSS</span>
+    </div>
+  );
+}
+
+function Splash() {
+  const [gone, setGone] = useState(false);
+  const [hide, setHide] = useState(false);
+  useEffect(() => {
+    const a = setTimeout(() => setHide(true), 1300);
+    const b = setTimeout(() => setGone(true), 1900);
+    return () => { clearTimeout(a); clearTimeout(b); };
+  }, []);
+  if (gone) return null;
+  return (
+    <div className={`splash ${hide ? 'hide' : ''}`}>
+      <div className="sun" />
+      <Wordmark size="xl" />
+    </div>
+  );
+}
+
+const greeting = () => {
+  const h = new Date().getHours();
+  if (h < 5) return 'Nocna zmiana';
+  if (h < 12) return 'Dzień dobry';
+  if (h < 18) return 'Siema';
+  return 'Dobry wieczór';
+};
 
 const fmt = (s) => {
   if (!Number.isFinite(s) || s < 0) return '0:00';
@@ -73,7 +112,7 @@ function TrackRow({ t, list, i, onOpen, showCover = true, index }) {
   const cur = current();
   const active = cur && cur.id === t.id;
   return (
-    <div className={`row ${active ? 'active' : ''}`} onClick={() => playList(list, i)}>
+    <div className={`row ${active ? 'active' : ''}`} onClick={() => { tap(); playList(list, i); }}>
       {showCover ? <Cover src={t.thumb} className="row-cover" /> : <div className="row-index">{index ?? i + 1}</div>}
       <div className="row-text">
         <div className="row-title">{t.title}</div>
@@ -127,7 +166,10 @@ function HomeView({ onOpen }) {
   const s = useAsync(() => yt.home(), []);
   return (
     <div className="view">
-      <h1 className="big">Słuchaj</h1>
+      <div className="home-head">
+        <Wordmark />
+        <div className="greet">{greeting()}</div>
+      </div>
       {s.loading && <Loader />}
       {s.error && <Err text={s.error} />}
       {s.data?.map((sec, i) => <Section key={i} s={sec} onOpen={onOpen} />)}
@@ -300,8 +342,8 @@ function MiniPlayer({ onExpand }) {
         <div className="mini-title">{t.title}</div>
         <div className="mini-sub">{p.error ? p.error : t.subtitle}</div>
       </div>
-      <button className="icon-btn" onClick={(e) => { e.stopPropagation(); toggle(); }}>{p.loading ? <span className="spin" /> : p.playing ? Icon.pause : Icon.play}</button>
-      <button className="icon-btn" onClick={(e) => { e.stopPropagation(); next(); }}>{Icon.next}</button>
+      <button className="icon-btn" onClick={(e) => { e.stopPropagation(); tap(); toggle(); }}>{p.loading ? <span className="spin" /> : p.playing ? Icon.pause : Icon.play}</button>
+      <button className="icon-btn" onClick={(e) => { e.stopPropagation(); tap(); next(); }}>{Icon.next}</button>
     </div>
   );
 }
@@ -351,14 +393,16 @@ function NowPlaying({ open, onClose, onOpen }) {
 
   if (!t) return null;
   return (
-    <div className={`np ${open ? 'open' : ''}`}>
+    <div className={`np ${open ? 'open' : ''} ${p.playing ? 'is-playing' : ''}`}>
       <div className="np-bg" style={{ backgroundImage: t.thumb ? `url(${t.thumb})` : undefined }} />
+      <div className="np-blobs"><i className="b1" /><i className="b2" /><i className="b3" /></div>
+      <div className="np-grain" />
       <div className="np-inner">
         <div className="np-top">
           <button className="icon-btn" onClick={onClose}>{Icon.down}</button>
           <div className="seg">
-            <button className={p.mode === 'audio' ? 'on' : ''} onClick={() => setMode('audio')}>Utwór</button>
-            <button className={p.mode === 'video' ? 'on' : ''} onClick={() => setMode('video')}>Teledysk</button>
+            <button className={p.mode === 'audio' ? 'on' : ''} onClick={() => { tap(); setMode('audio'); }}>Utwór</button>
+            <button className={p.mode === 'video' ? 'on' : ''} onClick={() => { tap(); setMode('video'); }}>Teledysk</button>
           </div>
           <button className={`icon-btn ${showQueue ? 'lit' : ''}`} onClick={() => setShowQueue((x) => !x)}>{Icon.queue}</button>
         </div>
@@ -391,9 +435,9 @@ function NowPlaying({ open, onClose, onOpen }) {
         </div>
         <Scrubber />
         <div className="np-controls">
-          <button className="icon-btn large" onClick={prev}>{Icon.prev}</button>
-          <button className="icon-btn huge" onClick={toggle}>{p.loading ? <span className="spin big" /> : p.playing ? Icon.pause : Icon.play}</button>
-          <button className="icon-btn large" onClick={next}>{Icon.next}</button>
+          <button className="icon-btn large" onClick={() => { tap(); prev(); }}>{Icon.prev}</button>
+          <button className="icon-btn huge" onClick={() => { tap(ImpactStyle.Medium); toggle(); }}>{p.loading ? <span className="spin big" /> : p.playing ? Icon.pause : Icon.play}</button>
+          <button className="icon-btn large" onClick={() => { tap(); next(); }}>{Icon.next}</button>
         </div>
       </div>
     </div>
@@ -417,9 +461,14 @@ export default function App() {
   const switchTab = (t) => { setTab(t); setStack([]); scroller.current?.scrollTo(0, 0); };
 
   const top = stack[stack.length - 1];
+  const p = usePlayer();
+  const cur = p.queue[p.index];
+  const cols = useCoverColors(cur?.thumb);
+  const vars = cols ? { '--c1': cols[0], '--c2': cols[1], '--c3': cols[2] } : {};
 
   return (
-    <div className="app">
+    <div className="app" style={vars}>
+      <Splash />
       <div id="engine-holder" className="engine-holder" />
       <main ref={scroller} className="scroller">
         {top && <button className="back" onClick={back}>{Icon.back}</button>}
