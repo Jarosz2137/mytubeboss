@@ -1,5 +1,12 @@
 // Everything that talks to YouTube lives here.
-import { Innertube, UniversalCache } from 'youtubei.js';
+import { Innertube, UniversalCache, Platform } from 'youtubei.js';
+
+// youtubei.js needs a JS evaluator to run YouTube's player code (n/sig decipher).
+// The WebView is a real JS engine, so plain Function works.
+Platform.shim.eval = (data, env) => {
+  const a = (v) => JSON.stringify(v ?? '');
+  return new Function(`${data.output}\nreturn process(${a(env.n)}, ${a(env.sp)}, ${a(env.sig)});`)();
+};
 import { Capacitor, CapacitorHttp, CapacitorCookies } from '@capacitor/core';
 import { Preferences } from '@capacitor/preferences';
 import { createPoMinter } from './po.js';
