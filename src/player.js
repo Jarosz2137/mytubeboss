@@ -4,12 +4,17 @@ import { useSyncExternalStore } from 'react';
 import { streamUrl, audioBlobUrl, sabrAudioBlobUrl, CLIENTS, upNext } from './yt.js';
 import * as ytmod from './yt.js';
 
-const el = document.createElement('video');
-el.playsInline = true;
-el.setAttribute('playsinline', '');
-el.setAttribute('webkit-playsinline', '');
-el.preload = 'auto';
-el.className = 'engine';
+// iOS pauses <video> when the app goes to the background, but keeps <audio> playing.
+// So: <audio> for "Utwór", <video> only while the music video is on screen.
+const videoEl = document.createElement('video');
+videoEl.playsInline = true;
+videoEl.setAttribute('playsinline', '');
+videoEl.setAttribute('webkit-playsinline', '');
+videoEl.preload = 'auto';
+videoEl.className = 'engine';
+const audioEl = document.createElement('audio');
+audioEl.preload = 'auto';
+let el = audioEl;
 
 let state = {
   queue: [],
@@ -28,7 +33,7 @@ const set = (patch) => {
 };
 export const usePlayer = () => useSyncExternalStore((f) => { subs.add(f); return () => subs.delete(f); }, () => state);
 export const current = () => state.queue[state.index];
-export const videoElement = el;
+export const videoElement = videoEl;
 
 let loadToken = 0;
 let lastBlobUrl = null;
@@ -187,21 +192,33 @@ export function seek(sec) {
 export function setMode(mode) {
   if (mode === state.mode) return;
   const at = el.currentTime || 0;
+  const old = el;
+  el = mode === 'video' ? videoEl : audioEl;
+  suppressErrors = true;
+  old.pause();
+  old.removeAttribute('src');
+  old.load();
   set({ mode });
   if (current()) load(at);
 }
 
+// Leaving the app while watching the video -> carry on as audio, like Premium.
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden && state.mode === 'video' && state.playing) setMode('audio');
+});
+
 /* -------- element events -------- */
-el.addEventListener('playing', () => set({ playing: true, loading: false }));
-el.addEventListener('pause', () => set({ playing: false }));
-el.addEventListener('waiting', () => set({ loading: true }));
-el.addEventListener('canplay', () => set({ loading: false }));
-el.addEventListener('timeupdate', () => {
+const on = (type, fn) => [audioEl, videoEl].forEach((m) => m.addEventListener(type, (e) => { if (e.target === el) fn(e); }));
+on('playing', () => set({ playing: true, loading: false }));
+on('pause', () => set({ playing: false }));
+on('waiting', () => set({ loading: true }));
+on('canplay', () => set({ loading: false }));
+on('timeupdate', () => {
   set({ time: el.currentTime, duration: Number.isFinite(el.duration) ? el.duration : state.duration });
   updatePosition();
 });
-el.addEventListener('ended', () => next());
-el.addEventListener('error', () => {
+on('ended', () => next());
+on('error', () => {
   if (!el.src || suppressErrors) return;
   set({ loading: false, playing: false, error: 'Stream się wysypał. Spróbuj ponownie albo pomiń.' });
 });
