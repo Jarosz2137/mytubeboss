@@ -67,7 +67,20 @@ async function load(startAt = 0) {
   updateMediaSession();
   suppressErrors = true;
 
-  // Audio: SABR first (the path YouTube's own web player uses).
+  // Fastest path that works today: the iOS client's HLS stream (Safari plays it natively).
+  // In "Utwór" mode the picture just isn't shown.
+  try {
+    const hls = await streamUrl(track.id, 'video', 'IOS');
+    if (token !== loadToken) return;
+    if (hls && hls.includes('.m3u8') || (hls && hls.includes('manifest'))) {
+      if (await tryPlay(hls, startAt, token)) { suppressErrors = false; set({ error: '' }); return; }
+      log.push('HLS: media ' + (el.error?.code ?? 'timeout'));
+    }
+  } catch (e) {
+    log.push('HLS: ' + String(e?.message || e).slice(0, 80));
+  }
+
+  // Audio fallback: SABR (the path YouTube's own web player uses).
   if (mode === 'audio') {
     try {
       set({ error: 'Ładuję utwór…' });
