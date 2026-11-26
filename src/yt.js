@@ -118,6 +118,35 @@ async function devFetch(input, init) {
   return fetch('/__proxy?u=' + encodeURIComponent(url), { method, headers, body });
 }
 
+/* ---------------- player id ---------------- */
+
+// youtubei.js scrapes the player id from /iframe_api and fails on some responses
+// (e.g. logged-in). Do it ourselves with looser patterns and a second source.
+let playerIdPromise = null;
+function getPlayerId() {
+  if (!playerIdPromise) {
+    playerIdPromise = (async () => {
+      const f = isNative ? nativeFetch : devFetch;
+      const tries = [
+        ['https://www.youtube.com/iframe_api', /player\\?\/([A-Za-z0-9_-]{6,})\\?\//],
+        ['https://www.youtube.com/embed/', /\/s\/player\/([A-Za-z0-9_-]{6,})\//],
+        ['https://music.youtube.com/', /\/s\/player\/([A-Za-z0-9_-]{6,})\//],
+      ];
+      for (const [url, re] of tries) {
+        try {
+          const t = await (await f(url)).text();
+          const m = t.match(re);
+          if (m) { console.info('[player] id', m[1], 'from', url); return m[1]; }
+          console.warn('[player] no id in', url, t.slice(0, 120));
+        } catch (e) { console.warn('[player] fetch failed', url, e?.message); }
+      }
+      return undefined;
+    })();
+    playerIdPromise.then((id) => { if (!id) playerIdPromise = null; });
+  }
+  return playerIdPromise;
+}
+
 /* ---------------- session ---------------- */
 
 // Login = YouTube Music cookies pasted once (OAuth "TV" tokens get HTTP 400 from YT Music).
@@ -136,7 +165,9 @@ export function getYT() {
       const cookie = (await Preferences.get({ key: COOKIE_KEY })).value || undefined;
       currentCookie = cookie || null;
       if (cookie) await syncNativeCookies(cookie);
+      const player_id = await getPlayerId();
       return Innertube.create({
+        player_id,
         fetch: isNative ? nativeFetch : devFetch,
         cache: new UniversalCache(false),
         generate_session_locally: !cookie,
@@ -430,7 +461,8 @@ function getPlayYT() {
     playPromise = (async () => {
       const fetchFn = isNative ? nativeFetch : devFetch;
       const cookie = (await Preferences.get({ key: COOKIE_KEY })).value || undefined;
-      const base = { fetch: fetchFn, cache: new UniversalCache(false), retrieve_player: true, lang: 'pl', location: 'PL', cookie, user_agent: navigator.userAgent };
+      const player_id = await getPlayerId();
+      const base = { player_id, fetch: fetchFn, cache: new UniversalCache(false), retrieve_player: true, lang: 'pl', location: 'PL', cookie, user_agent: navigator.userAgent };
       // Real visitorData from YouTube (not generated locally): iOS keeps YouTube's visitor
       // cookie in its jar, so the token must be bound to the identity those cookies carry.
       const first = await Innertube.create({ ...base, generate_session_locally: false });
