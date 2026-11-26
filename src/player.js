@@ -1,7 +1,7 @@
 // Playback engine: one <video> element for both audio and music videos,
 // a queue, autoplay radio, and lock-screen / Dynamic Island metadata.
 import { useSyncExternalStore } from 'react';
-import { streamUrl, audioBlobUrl, sabrAudioBlobUrl, hlsUrl, CLIENTS, upNext } from './yt.js';
+import { streamUrl, audioBlobUrl, sabrAudioBlobUrl, hlsUrl, counterpartId, CLIENTS, upNext } from './yt.js';
 import * as ytmod from './yt.js';
 
 // iOS pauses <video> when the app goes to the background, but keeps <audio> playing.
@@ -83,18 +83,33 @@ async function load(startAt = 0) {
     log.push('HLS: ' + String(e?.message || e).slice(0, 80));
   }
 
+  // Album track without HLS -> play its linked music video's HLS (same song).
+  try {
+    const cid = await counterpartId(track.id);
+    if (token !== loadToken) return;
+    if (cid) {
+      const hls = await hlsUrl(cid);
+      if (await tryPlay(hls, startAt, token)) { suppressErrors = false; set({ error: '' }); return; }
+      log.push('HLS teledysku: media ' + (el.error?.code ?? 'timeout'));
+    } else log.push('brak teledysku');
+  } catch (e) {
+    log.push('HLS teledysku: ' + String(e?.message || e).slice(0, 80));
+  }
+
   // Audio fallback: SABR (the path YouTube's own web player uses).
   if (mode === 'audio') {
-    try {
-      set({ error: 'Ładuję utwór…' });
-      const u = await sabrAudioBlobUrl(track.id, (b) => { if (token === loadToken) set({ error: 'Ładuję utwór… ' + (b / 1048576).toFixed(1) + ' MB' }); });
-      if (token !== loadToken) return;
-      if (lastBlobUrl) URL.revokeObjectURL(lastBlobUrl);
-      lastBlobUrl = u;
-      if (await tryPlay(u, startAt, token)) { suppressErrors = false; set({ error: '' }); return; }
-      log.push('SABR: media ' + (el.error?.code ?? 'timeout'));
-    } catch (e) {
-      log.push(String(e?.message || e).slice(0, 120));
+    for (const sc of ['MWEB', 'WEB']) {
+      try {
+        set({ error: 'Ładuję utwór…' });
+        const u = await sabrAudioBlobUrl(track.id, (b) => { if (token === loadToken) set({ error: 'Ładuję utwór (' + sc + ')… ' + (b / 1048576).toFixed(1) + ' MB' }); }, sc);
+        if (token !== loadToken) return;
+        if (lastBlobUrl) URL.revokeObjectURL(lastBlobUrl);
+        lastBlobUrl = u;
+        if (await tryPlay(u, startAt, token)) { suppressErrors = false; set({ error: '' }); return; }
+        log.push('SABR ' + sc + ': media ' + (el.error?.code ?? 'timeout'));
+      } catch (e) {
+        log.push(String(e?.message || e).slice(0, 120));
+      }
     }
     set({ error: '' });
   }

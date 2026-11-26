@@ -395,7 +395,7 @@ function getPlayYT() {
     playPromise = (async () => {
       const fetchFn = isNative ? nativeFetch : devFetch;
       const cookie = (await Preferences.get({ key: COOKIE_KEY })).value || undefined;
-      const base = { fetch: fetchFn, cache: new UniversalCache(false), retrieve_player: true, lang: 'pl', location: 'PL', cookie };
+      const base = { fetch: fetchFn, cache: new UniversalCache(false), retrieve_player: true, lang: 'pl', location: 'PL', cookie, user_agent: navigator.userAgent };
       // Real visitorData from YouTube (not generated locally): iOS keeps YouTube's visitor
       // cookie in its jar, so the token must be bound to the identity those cookies carry.
       const first = await Innertube.create({ ...base, generate_session_locally: false });
@@ -481,10 +481,12 @@ export async function audioBlobUrl(id) {
 
 // SABR: YouTube's own streaming protocol (what the web player uses now).
 // Downloads the audio track (AAC/mp4) and plays it from memory.
-export async function sabrAudioBlobUrl(id, onProgress) {
+const SABR_CLIENTS = { MWEB: { id: 2, version: '2.20260205.04.01' }, WEB: { id: 1, version: null } };
+
+export async function sabrAudioBlobUrl(id, onProgress, client = 'MWEB') {
   const { yt, minter, po_token, fetchFn, binding } = await getPlayYT();
   const loadInfo = async () => {
-    const info = await yt.getBasicInfo(id, await opts(minter, id, { client: 'WEB' }));
+    const info = await yt.getBasicInfo(id, await opts(minter, id, { client }));
     const url = info.streaming_data?.server_abr_streaming_url;
     return {
       info,
@@ -497,7 +499,7 @@ export async function sabrAudioBlobUrl(id, onProgress) {
   const sd = info.streaming_data;
   const ps = info.playability_status;
   if (ps && ps.status && ps.status !== 'OK') throw new Error('SABR: ' + ps.status + ' ' + (ps.reason || ''));
-  if (!sd?.server_abr_streaming_url) throw new Error('SABR: brak URL');
+  if (!sd?.server_abr_streaming_url) throw new Error('SABR ' + client + ': brak URL');
   const serverAbrStreamingUrl = first.serverAbrStreamingUrl;
   const ustreamer = first.videoPlaybackUstreamerConfig;
   if (!ustreamer) throw new Error('SABR: brak ustreamer config');
@@ -511,7 +513,7 @@ export async function sabrAudioBlobUrl(id, onProgress) {
     videoPlaybackUstreamerConfig: ustreamer,
     poToken: po_token,
     formats,
-    clientInfo: { clientName: 1, clientVersion: c.clientVersion, osName: c.osName, osVersion: c.osVersion },
+    clientInfo: { clientName: SABR_CLIENTS[client].id, clientVersion: SABR_CLIENTS[client].version || c.clientVersion, osName: c.osName, osVersion: c.osVersion },
     callbacks: {
       // YouTube asks for attestation (~1 min in); without this the stream just stops.
       onMintPoToken: minter ? async () => { console.info('[SABR] minting PO for', binding?.slice(0, 12)); return minter.mint(binding); } : undefined,
@@ -574,4 +576,18 @@ export async function imageObjectUrl(url) {
   const r = await (isNative ? nativeFetch(url) : devFetch(url));
   if (!r.ok) throw new Error('img ' + r.status);
   return URL.createObjectURL(await r.blob());
+}
+
+// Album tracks often have a linked music video ("counterpart"); its HLS stream works.
+export async function counterpartId(id) {
+  const yt = await getYT();
+  const panel = await yt.music.getUpNext(id, false);
+  for (const it of panel.contents || []) {
+    const primary = it.primary || it;
+    const vid = primary.video_id || primary.id;
+    if (vid !== id) continue;
+    const cp = it.counterpart?.[0];
+    if (cp?.video_id) return cp.video_id;
+  }
+  return null;
 }
