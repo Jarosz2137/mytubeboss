@@ -46,7 +46,7 @@ async function prefetchNext() {
   if (!nextTrack || ready.has(nextTrack.id) || prefetching === nextTrack.id) return;
   prefetching = nextTrack.id;
   try {
-    const u = await sabrAudioBlobUrl(nextTrack.id, null, 'MWEB').catch(() => sabrAudioBlobUrl(nextTrack.id, null, 'WEB'));
+    const u = await sabrAudioBlobUrl(nextTrack.id, null, 'WEB');
     ready.set(nextTrack.id, u);
     // keep memory in check
     while (ready.size > 3) { const [k, v] = ready.entries().next().value; URL.revokeObjectURL(v); ready.delete(k); }
@@ -127,7 +127,7 @@ async function load(startAt = 0) {
 
   // Audio fallback: SABR (the path YouTube's own web player uses).
   if (mode === 'audio') {
-    for (const sc of ['MWEB', 'WEB']) {
+    for (const sc of ['WEB', 'MWEB']) {
       try {
         set({ error: 'Ładuję utwór…' });
         const u = await sabrAudioBlobUrl(track.id, (b) => { if (token === loadToken) set({ error: 'Ładuję utwór (' + sc + ')… ' + (b / 1048576).toFixed(1) + ' MB' }); }, sc);
