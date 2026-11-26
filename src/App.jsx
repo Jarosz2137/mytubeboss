@@ -147,6 +147,48 @@ function Card({ item, onOpen, i = 0 }) {
   );
 }
 
+// Horizontal shelf that loops forever, with a cover-flow style depth effect.
+function LoopShelf({ items, onOpen }) {
+  const ref = useRef();
+  const loop = items.length >= 4;
+  const list = loop ? [...items, ...items, ...items] : items;
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const setW = () => el.scrollWidth / 3;
+    if (loop) el.scrollLeft = setW();
+    let raf = 0;
+    const paint = () => {
+      raf = 0;
+      if (loop) {
+        const w = setW();
+        if (el.scrollLeft < w * 0.5) el.scrollLeft += w;
+        else if (el.scrollLeft > w * 1.5) el.scrollLeft -= w;
+      }
+      const box = el.getBoundingClientRect();
+      const mid = box.left + box.width / 2;
+      for (const c of el.children) {
+        const r = c.getBoundingClientRect();
+        const d = Math.max(-1.6, Math.min(1.6, (r.left + r.width / 2 - mid) / box.width));
+        const cov = c.firstChild;
+        if (cov) {
+          cov.style.transform = `perspective(600px) rotateY(${d * -14}deg) scale(${1 - Math.abs(d) * 0.1})`;
+          cov.style.filter = `brightness(${1 - Math.abs(d) * 0.25})`;
+        }
+      }
+    };
+    const onScroll = () => { if (!raf) raf = requestAnimationFrame(paint); };
+    paint();
+    el.addEventListener('scroll', onScroll, { passive: true });
+    return () => { el.removeEventListener('scroll', onScroll); if (raf) cancelAnimationFrame(raf); };
+  }, [items, loop]);
+  return (
+    <div className="shelf loop" ref={ref}>
+      {list.map((it, i) => <Card key={(it.id || '') + i} i={i % items.length} item={it} onOpen={(x) => (yt.isPlayable(x) ? playList([x], 0) : onOpen(x))} />)}
+    </div>
+  );
+}
+
 function Section({ s, onOpen }) {
   const tracks = s.items.filter(yt.isPlayable);
   const mostlyTracks = tracks.length >= s.items.length * 0.7;
@@ -158,9 +200,7 @@ function Section({ s, onOpen }) {
           {tracks.slice(0, 12).map((t, i) => <TrackRow key={t.id + i} t={t} list={tracks} i={i} onOpen={onOpen} />)}
         </div>
       ) : (
-        <div className="shelf">
-          {s.items.map((it, i) => <Card key={(it.id || '') + i} i={i} item={it} onOpen={(x) => (yt.isPlayable(x) ? playList([x], 0) : onOpen(x))} />)}
-        </div>
+        <LoopShelf items={s.items} onOpen={onOpen} />
       )}
     </section>
   );
@@ -394,7 +434,7 @@ function CollectionView({ id, kind, onOpen }) {
 
 /* ---------------- player UI ---------------- */
 
-function MiniPlayer({ onExpand, hidden }) {
+function MiniPlayer({ onExpand, hidden, onDrag, onDragEnd }) {
   const p = usePlayer();
   const t = current();
   const startY = useRef(null);
@@ -404,9 +444,9 @@ function MiniPlayer({ onExpand, hidden }) {
     <div
       className={`mini ${hidden ? 'mini-hidden' : ''}`}
       onClick={onExpand}
-      onTouchStart={(e) => { startY.current = e.touches[0].clientY; }}
-      onTouchMove={(e) => { if (startY.current != null && startY.current - e.touches[0].clientY > 25) { startY.current = null; onExpand(); } }}
-      onTouchEnd={() => { startY.current = null; }}
+      onTouchStart={(e) => { if (e.target.closest('button')) return; startY.current = e.touches[0].clientY; }}
+      onTouchMove={(e) => { if (startY.current != null) onDrag(Math.min(0, e.touches[0].clientY - startY.current)); }}
+      onTouchEnd={(e) => { if (startY.current != null) { const dy = e.changedTouches[0].clientY - startY.current; startY.current = null; onDragEnd(dy); } }}
     >
       <div className="mini-glow" style={{ backgroundImage: t.thumb ? `url(${t.thumb})` : undefined }} />
       <div className="mini-progress" style={{ width: pct + '%' }} />
@@ -440,11 +480,11 @@ function Scrubber() {
   );
 }
 
-function NowPlaying({ open, onClose, onOpen }) {
+function NowPlaying({ open, onClose, onOpen, sheetRef }) {
   const p = usePlayer();
   const t = current();
   const videoBox = useRef();
-  const sheet = useRef();
+  const sheet = sheetRef;
   const [showQueue, setShowQueue] = useState(false);
   const [slide, setSlide] = useState('');
   const g = useRef(null);
@@ -585,6 +625,29 @@ export default function App() {
   const [stack, setStack] = useState([]);
   const [npOpen, setNpOpen] = useState(false);
   const scroller = useRef();
+  const sheetRef = useRef();
+
+  // Drag up from the mini player: the full player follows the finger.
+  const dragSheet = (dy) => {
+    const el = sheetRef.current;
+    if (!el) return;
+    const h = window.innerHeight;
+    const up = Math.min(h, -dy);
+    const k = up / h; // 0 = closed, 1 = open
+    el.style.transition = 'none';
+    el.style.transform = `translateY(${h - up}px) scale(${0.92 + 0.08 * k})`;
+    el.style.borderRadius = `${40 - 40 * k}px`;
+    el.style.opacity = String(Math.min(1, 0.3 + k * 1.4));
+    const mini = document.querySelector('.mini');
+    if (mini) { mini.style.transition = 'none'; mini.style.opacity = String(1 - Math.min(1, k * 3)); }
+  };
+  const endDragSheet = (dy) => {
+    const el = sheetRef.current;
+    const mini = document.querySelector('.mini');
+    if (el) { el.style.transition = ''; el.style.transform = ''; el.style.borderRadius = ''; el.style.opacity = ''; }
+    if (mini) { mini.style.transition = ''; mini.style.opacity = ''; }
+    if (-dy > 90 || Math.abs(dy) < 6) { tap(); setNpOpen(true); }
+  };
 
   const open = useCallback((item) => {
     if (yt.isPlayable(item)) return playList([item], 0);
@@ -619,13 +682,13 @@ export default function App() {
         {top?.kind === 'artist' && <ArtistView key={top.id} id={top.id} onOpen={open} />}
         {(top?.kind === 'album' || top?.kind === 'playlist') && <CollectionView key={top.id} id={top.id} kind={top.kind} onOpen={open} />}
       </main>
-      <MiniPlayer hidden={npOpen} onExpand={() => { tap(); setNpOpen(true); }} />
+      <MiniPlayer hidden={npOpen} onExpand={() => {}} onDrag={dragSheet} onDragEnd={endDragSheet} />
       <nav className="tabs">
         <button className={tab === 'home' ? 'on' : ''} onClick={() => switchTab('home')}>{Icon.home}<span>Główna</span></button>
         <button className={tab === 'search' ? 'on' : ''} onClick={() => switchTab('search')}>{Icon.search}<span>Szukaj</span></button>
         <button className={tab === 'library' ? 'on' : ''} onClick={() => switchTab('library')}>{Icon.lib}<span>Biblioteka</span></button>
       </nav>
-      <NowPlaying open={npOpen} onClose={() => setNpOpen(false)} onOpen={open} />
+      <NowPlaying sheetRef={sheetRef} open={npOpen} onClose={() => setNpOpen(false)} onOpen={open} />
     </div>
   );
 }

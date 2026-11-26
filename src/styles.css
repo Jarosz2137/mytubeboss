@@ -365,3 +365,7 @@ h2 { font-size: 21px; font-weight: 700; margin: 26px 0 10px; letter-spacing: -0.
 .la-tile .cover { width: 120px; box-shadow: 0 6px 18px rgba(0,0,0,.35); }
 .la-tile:active .cover { transform: scale(.95); }
 .la-title { font-size: 13px; font-weight: 600; margin-top: 6px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+/* looping cover-flow shelves */
+.shelf.loop { scroll-snap-type: x proximity; }
+.shelf.loop .card .cover { transition: transform .08s linear, filter .08s linear; will-change: transform; }
