@@ -470,3 +470,13 @@ h2 { font-size: 21px; font-weight: 700; margin: 26px 0 10px; letter-spacing: -0.
 .np-cover.no-anim { animation: none !important; }
 .np-cover { transition: width .45s cubic-bezier(.2,1,.3,1), box-shadow .8s; }
 .np:not(.is-playing) .viz i { animation: none; transform: scaleY(.12); transition: transform .4s; }
+
+/* previous / next labels (where "Teraz gra" used to be) */
+.np-nav { display: flex; justify-content: space-between; gap: 16px; margin-top: 14px; animation: fadeSlide .4s ease both; }
+.np-nav-item { display: flex; flex-direction: column; min-width: 0; max-width: 46%; gap: 2px; text-align: left; transition: opacity .2s, transform .15s; }
+.np-nav-item.right { text-align: right; align-items: flex-end; }
+.np-nav-item:active { transform: scale(.96); }
+.np-nav-item:disabled { opacity: .3; }
+.np-nav-label { font-size: 10.5px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: color-mix(in srgb, var(--c1) 55%, white); }
+.np-nav-title { font-size: 13px; color: rgba(255,255,255,.7); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.np-info { margin-top: 8px; }

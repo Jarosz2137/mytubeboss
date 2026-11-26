@@ -686,6 +686,16 @@ function NowPlaying({ open, onClose, onOpen, sheetRef }) {
           </div>
         )}
 
+        <div className="np-nav" key={'n' + t.id}>
+          <button className="np-nav-item left" disabled={!p.queue[p.index - 1]} onClick={() => { tap(); prev(); }}>
+            <span className="np-nav-label">‹ Poprzednio</span>
+            <span className="np-nav-title">{p.queue[p.index - 1]?.title || '—'}</span>
+          </button>
+          <button className="np-nav-item right" disabled={!p.queue[p.index + 1]} onClick={() => { tap(); next(); }}>
+            <span className="np-nav-label">Następnie ›</span>
+            <span className="np-nav-title">{p.queue[p.index + 1]?.title || 'Radio z tego utworu'}</span>
+          </button>
+        </div>
         <div className="np-info">
           <div className="np-meta" key={'m' + t.id}>
             <div className="np-title">{t.title}</div>
