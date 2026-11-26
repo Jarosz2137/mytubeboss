@@ -1,7 +1,7 @@
 // Playback engine: one <video> element for both audio and music videos,
 // a queue, autoplay radio, and lock-screen / Dynamic Island metadata.
 import { useSyncExternalStore } from 'react';
-import { audioUrl, videoUrl, upNext } from './yt.js';
+import { streamUrl, audioBlobUrl, CLIENTS, upNext } from './yt.js';
 
 const el = document.createElement('video');
 el.playsInline = true;
@@ -30,27 +30,76 @@ export const current = () => state.queue[state.index];
 export const videoElement = el;
 
 let loadToken = 0;
+let lastBlobUrl = null;
+
+// Resolves true once the element actually starts, false on error/timeout.
+function tryPlay(url, startAt, token) {
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = (ok) => {
+      if (done) return;
+      done = true;
+      el.removeEventListener('playing', onOk);
+      el.removeEventListener('error', onErr);
+      clearTimeout(t);
+      resolve(ok);
+    };
+    const onOk = () => finish(true);
+    const onErr = () => finish(false);
+    const t = setTimeout(() => finish(false), 15000);
+    el.addEventListener('playing', onOk);
+    el.addEventListener('error', onErr);
+    el.src = url;
+    if (startAt) el.addEventListener('loadedmetadata', () => { el.currentTime = startAt; }, { once: true });
+    el.play().catch(() => {});
+    if (token !== loadToken) finish(false);
+  });
+}
 
 async function load(startAt = 0) {
   const track = current();
   if (!track) return;
   const token = ++loadToken;
+  const mode = state.mode;
+  const log = [];
   set({ loading: true, error: '', time: startAt, duration: track.duration || 0 });
   updateMediaSession();
-  try {
-    const url = state.mode === 'video' ? await videoUrl(track.id) : await audioUrl(track.id);
+  suppressErrors = true;
+
+  for (const client of CLIENTS) {
     if (token !== loadToken) return;
-    el.src = url;
-    if (startAt) {
-      el.addEventListener('loadedmetadata', () => { el.currentTime = startAt; }, { once: true });
+    try {
+      const url = await streamUrl(track.id, mode, client);
+      if (!url) { log.push(client + ': brak'); continue; }
+      if (await tryPlay(url, startAt, token)) { suppressErrors = false; return; }
+      log.push(client + ': media ' + (el.error?.code ?? 'timeout'));
+    } catch (e) {
+      log.push(client + ': ' + String(e?.message || e).slice(0, 60));
     }
-    await el.play();
-  } catch (e) {
-    if (token !== loadToken) return;
-    console.error(e);
-    set({ loading: false, playing: false, error: 'Nie udało się odpalić utworu: ' + (e?.message || e) });
   }
+
+  // Last resort for audio: download through native HTTP and play from memory.
+  if (mode === 'audio' && token === loadToken) {
+    try {
+      set({ error: 'Ładuję utwór w całości…' });
+      const blobUrl = await audioBlobUrl(track.id);
+      if (token !== loadToken) return;
+      if (lastBlobUrl) URL.revokeObjectURL(lastBlobUrl);
+      lastBlobUrl = blobUrl;
+      if (await tryPlay(blobUrl, startAt, token)) { suppressErrors = false; set({ error: '' }); return; }
+      log.push('blob: media ' + (el.error?.code ?? 'timeout'));
+    } catch (e) {
+      log.push('blob: ' + String(e?.message || e).slice(0, 80));
+    }
+  }
+
+  suppressErrors = false;
+  if (token !== loadToken) return;
+  console.error('playback failed', log);
+  set({ loading: false, playing: false, error: 'Nie gra. ' + log.join(' | ') });
 }
+
+let suppressErrors = false;
 
 export function playList(tracks, startIndex = 0) {
   set({ queue: tracks.slice(), index: startIndex });
@@ -123,7 +172,7 @@ el.addEventListener('timeupdate', () => {
 });
 el.addEventListener('ended', () => next());
 el.addEventListener('error', () => {
-  if (!el.src) return;
+  if (!el.src || suppressErrors) return;
   set({ loading: false, playing: false, error: 'Stream się wysypał. Spróbuj ponownie albo pomiń.' });
 });
 

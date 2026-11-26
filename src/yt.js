@@ -40,7 +40,15 @@ async function nativeFetch(input, init) {
   if (typeof body === 'string' && ct.includes('json')) {
     try { data = JSON.parse(body); } catch { /* keep string */ }
   }
-  const r = await CapacitorHttp.request({ url, method, headers, data, responseType: 'text' });
+  const binary = /googlevideo\.com|ytimg\.com/.test(url);
+  const r = await CapacitorHttp.request({ url, method, headers, data, responseType: binary ? 'arraybuffer' : 'text' });
+  if (binary) {
+    const b64 = typeof r.data === 'string' ? r.data : '';
+    const bin = atob(b64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return new Response(r.status === 204 ? null : bytes, { status: r.status, headers: r.headers || {} });
+  }
   return makeResponse(r.status, r.data, r.headers);
 }
 
@@ -339,48 +347,46 @@ const canHls = () => {
   return !!v.canPlayType('application/vnd.apple.mpegurl');
 };
 
-async function tryClients(clients, fn) {
+// Clients that usually don't need a PO token go first.
+export const CLIENTS = ['ANDROID_VR', 'TV', 'IOS', 'WEB'];
+
+// Direct stream URL for one client (null if that client has nothing playable).
+export async function streamUrl(id, mode, client) {
+  const yt = await getYT();
+  if (mode === 'video' && client === 'IOS' && canHls()) {
+    const info = await yt.getBasicInfo(id, { client: 'IOS' });
+    if (info.streaming_data?.hls_manifest_url) return info.streaming_data.hls_manifest_url;
+  }
+  const opts = mode === 'video'
+    ? { type: 'video+audio', quality: 'best', format: 'mp4', client }
+    : { type: 'audio', quality: 'best', format: 'mp4', client };
+  const f = await yt.getStreamingData(id, opts);
+  return f?.url || null;
+}
+
+// Fallback: download the whole audio file through native HTTP (right headers, no CORS)
+// and play it from memory. Slower start, but works when direct URLs get refused.
+export async function audioBlobUrl(id, onClient) {
+  const yt = await getYT();
   let lastErr;
-  for (const client of clients) {
+  for (const client of CLIENTS) {
     try {
-      const r = await fn(client);
-      if (r) return r;
+      onClient?.(client);
+      const stream = await yt.download(id, { type: 'audio', quality: 'best', format: 'mp4', client });
+      const reader = stream.getReader();
+      const parts = [];
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        parts.push(value);
+      }
+      const blob = new Blob(parts, { type: 'audio/mp4' });
+      if (blob.size < 10000) throw new Error('za mały plik (' + blob.size + ' B)');
+      return URL.createObjectURL(blob);
     } catch (e) {
       lastErr = e;
-      console.warn(`stream via ${client} failed`, e);
+      console.warn('blob via ' + client + ' failed', e);
     }
   }
-  throw lastErr || new Error('Brak streamu');
-}
-
-// Audio-only: m4a/AAC, because iOS doesn't like webm/opus everywhere.
-export async function audioUrl(id) {
-  const yt = await getYT();
-  return tryClients(['IOS', 'ANDROID_VR', 'TV', 'WEB'], async (client) => {
-    const f = await yt.getStreamingData(id, { type: 'audio', quality: 'best', format: 'mp4', client });
-    return f?.url ? (isNative ? f.url : devMediaUrl(f.url)) : null;
-  });
-}
-
-// Music video: HLS (up to 1080p, Safari plays it natively) or muxed mp4 as fallback.
-export async function videoUrl(id) {
-  const yt = await getYT();
-  if (canHls()) {
-    try {
-      const info = await yt.getBasicInfo(id, { client: 'IOS' });
-      const hls = info.streaming_data?.hls_manifest_url;
-      if (hls) return hls;
-    } catch (e) {
-      console.warn('HLS failed', e);
-    }
-  }
-  return tryClients(['IOS', 'ANDROID_VR', 'TV', 'WEB'], async (client) => {
-    const f = await yt.getStreamingData(id, { type: 'video+audio', quality: 'best', format: 'mp4', client });
-    return f?.url ? (isNative ? f.url : devMediaUrl(f.url)) : null;
-  });
-}
-
-// In the desktop browser, media URLs are played directly (media tags don't need CORS).
-function devMediaUrl(u) {
-  return u;
+  throw lastErr || new Error('download failed');
 }
