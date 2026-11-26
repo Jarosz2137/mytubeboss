@@ -555,3 +555,10 @@ h2 { font-size: 21px; font-weight: 700; margin: 26px 0 10px; letter-spacing: -0.
 .vpop-bar button { width: 32px; height: 32px; border-radius: 50%; border: 0; color: #fff; background: rgba(0,0,0,.5); display: flex; align-items: center; justify-content: center; }
 .vpop-bar svg, .np-full svg { width: 18px; height: 18px; }
 .np-full.pip { right: 64px; }
+
+/* fix: a long title stretched the quick-picks page (flex min-width:auto) and pushed covers off screen */
+.qp-page { min-width: 0; overflow: hidden; }
+.qp-row { min-width: 0; }
+.qp-cover, .row-cover, .qp-row .icon-btn { flex: none; }
+.row-sub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lshelf, .shelf { min-width: 0; }
