@@ -38,6 +38,26 @@ export const videoElement = videoEl;
 let loadToken = 0;
 let lastBlobUrl = null;
 
+// Ready-to-play audio for upcoming tracks (SABR downloads take a few seconds).
+const ready = new Map(); // videoId -> blob URL
+let prefetching = null;
+async function prefetchNext() {
+  const nextTrack = state.queue[state.index + 1];
+  if (!nextTrack || ready.has(nextTrack.id) || prefetching === nextTrack.id) return;
+  prefetching = nextTrack.id;
+  try {
+    const u = await sabrAudioBlobUrl(nextTrack.id, null, 'MWEB').catch(() => sabrAudioBlobUrl(nextTrack.id, null, 'WEB'));
+    ready.set(nextTrack.id, u);
+    // keep memory in check
+    while (ready.size > 3) { const [k, v] = ready.entries().next().value; URL.revokeObjectURL(v); ready.delete(k); }
+    console.info('[prefetch] ready', nextTrack.title);
+  } catch (e) {
+    console.warn('[prefetch] failed', e?.message);
+  } finally {
+    prefetching = null;
+  }
+}
+
 // Resolves true once the element actually starts, false on error/timeout.
 function tryPlay(url, startAt, token) {
   return new Promise((resolve) => {
@@ -72,12 +92,21 @@ async function load(startAt = 0) {
   updateMediaSession();
   suppressErrors = true;
 
+  // Already downloaded in the background?
+  if (ready.has(track.id)) {
+    const u = ready.get(track.id);
+    ready.delete(track.id);
+    if (lastBlobUrl) URL.revokeObjectURL(lastBlobUrl);
+    lastBlobUrl = u;
+    if (await tryPlay(u, startAt, token)) { suppressErrors = false; set({ error: '' }); prefetchNext(); return; }
+  }
+
   // Fastest path that works today: the iOS client's HLS stream (Safari plays it natively).
   // In "Utwór" mode the picture just isn't shown.
   try {
     const hls = await hlsUrl(track.id);
     if (token !== loadToken) return;
-    if (await tryPlay(hls, startAt, token)) { suppressErrors = false; set({ error: '' }); return; }
+    if (await tryPlay(hls, startAt, token)) { suppressErrors = false; set({ error: '' }); prefetchNext(); return; }
     log.push('HLS: media ' + (el.error?.code ?? 'timeout'));
   } catch (e) {
     log.push('HLS: ' + String(e?.message || e).slice(0, 80));
@@ -89,7 +118,7 @@ async function load(startAt = 0) {
     if (token !== loadToken) return;
     if (cid) {
       const hls = await hlsUrl(cid);
-      if (await tryPlay(hls, startAt, token)) { suppressErrors = false; set({ error: '' }); return; }
+      if (await tryPlay(hls, startAt, token)) { suppressErrors = false; set({ error: '' }); prefetchNext(); return; }
       log.push('HLS teledysku: media ' + (el.error?.code ?? 'timeout'));
     } else log.push('brak teledysku');
   } catch (e) {
@@ -105,7 +134,7 @@ async function load(startAt = 0) {
         if (token !== loadToken) return;
         if (lastBlobUrl) URL.revokeObjectURL(lastBlobUrl);
         lastBlobUrl = u;
-        if (await tryPlay(u, startAt, token)) { suppressErrors = false; set({ error: '' }); return; }
+        if (await tryPlay(u, startAt, token)) { suppressErrors = false; set({ error: '' }); prefetchNext(); return; }
         log.push('SABR ' + sc + ': media ' + (el.error?.code ?? 'timeout'));
       } catch (e) {
         log.push(String(e?.message || e).slice(0, 120));
