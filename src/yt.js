@@ -449,7 +449,7 @@ export async function audioBlobUrl(id) {
 
 // SABR: YouTube's own streaming protocol (what the web player uses now).
 // Downloads the audio track (AAC/mp4) and plays it from memory.
-export async function sabrAudioBlobUrl(id) {
+export async function sabrAudioBlobUrl(id, onProgress) {
   const { yt, minter, po_token, fetchFn } = await getPlayYT();
   const info = await yt.getBasicInfo(id, await opts(minter, id, { client: 'WEB' }));
   const sd = info.streaming_data;
@@ -471,18 +471,42 @@ export async function sabrAudioBlobUrl(id) {
     formats,
     clientInfo: { clientName: 1, clientVersion: c.clientVersion, osName: c.osName, osVersion: c.osVersion },
   });
-  const { audioStream, selectedFormats } = sabr.start({
+  let sabrErr = null;
+  try { sabr.on('error', (e) => { sabrErr = e; }); } catch { /* */ }
+  const { audioStream, videoStream, selectedFormats } = sabr.start({
     enabledTrackTypes: EnabledTrackTypes.AUDIO_ONLY,
     audioPreferences: { container: 'mp4', preferredAudioCodec: 'aac', quality: 'AUDIO_QUALITY_MEDIUM' },
     isPostLiveDvr: false,
   });
+  // Drain the (empty) video track so backpressure never stalls the session.
+  if (videoStream) {
+    (async () => { const r = videoStream.getReader(); for (;;) { const { done } = await r.read(); if (done) break; } })().catch(() => {});
+  }
   const reader = audioStream.getReader();
   const parts = [];
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    parts.push(value);
+  let bytes = 0;
+  let lastChunk = Date.now();
+  const watchdog = setInterval(() => {
+    if (Date.now() - lastChunk > 25000) {
+      clearInterval(watchdog);
+      sabr.abort().catch(() => {});
+      reader.cancel(new Error('stall')).catch(() => {});
+    }
+  }, 2000);
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      parts.push(value);
+      bytes += value.byteLength;
+      lastChunk = Date.now();
+      onProgress?.(bytes);
+    }
+  } finally {
+    clearInterval(watchdog);
   }
+  if (sabrErr) throw new Error('SABR: ' + (sabrErr.message || sabrErr) + ' po ' + Math.round(bytes / 1024) + ' KB');
+  if (Date.now() - lastChunk > 25000) throw new Error('SABR: stanął po ' + Math.round(bytes / 1024) + ' KB');
   const mime = (selectedFormats?.audioFormat?.mimeType || 'audio/mp4').split(';')[0];
   const blob = new Blob(parts, { type: mime });
   if (blob.size < 10000) throw new Error('SABR: za mały plik (' + blob.size + ' B)');

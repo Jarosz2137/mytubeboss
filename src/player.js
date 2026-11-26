@@ -71,7 +71,7 @@ async function load(startAt = 0) {
   if (mode === 'audio') {
     try {
       set({ error: 'Ładuję utwór…' });
-      const u = await sabrAudioBlobUrl(track.id);
+      const u = await sabrAudioBlobUrl(track.id, (b) => { if (token === loadToken) set({ error: 'Ładuję utwór… ' + (b / 1048576).toFixed(1) + ' MB' }); });
       if (token !== loadToken) return;
       if (lastBlobUrl) URL.revokeObjectURL(lastBlobUrl);
       lastBlobUrl = u;
