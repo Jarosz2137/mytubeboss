@@ -461,6 +461,15 @@ function MiniPlayer({ onExpand, hidden, onDrag, onDragEnd }) {
   );
 }
 
+function Visualizer() {
+  const bars = useRef([...Array(28)].map(() => ({ d: 0.45 + Math.random() * 0.7, o: -Math.random() }))).current;
+  return (
+    <div className="viz" aria-hidden="true">
+      {bars.map((b, i) => <i key={i} style={{ animationDuration: b.d + 's', animationDelay: b.o + 's' }} />)}
+    </div>
+  );
+}
+
 function Scrubber() {
   const p = usePlayer();
   const [drag, setDrag] = useState(null);
@@ -556,8 +565,16 @@ function NowPlaying({ open, onClose, onOpen, sheetRef }) {
       <div className="np-bg" key={'bg' + t.id} style={{ backgroundImage: t.thumb ? `url(${t.thumb})` : undefined }} />
       <div className="np-blobs"><i className="b1" /><i className="b2" /><i className="b3" /></div>
       <div className="np-grain" />
+      <div className="np-scene" aria-hidden="true">
+        <div className="np-sun" />
+        <div className="np-grid" />
+      </div>
       <div className="np-inner">
         <div className="np-grabber" />
+        <div className="np-brand">
+          <Wordmark size="xs" />
+          <span className="boss-badge">👑 BOSS MODE · 0 reklam</span>
+        </div>
         <div className="np-top">
           <button className="icon-btn" onClick={onClose}>{Icon.down}</button>
           <div className={`seg ${p.mode}`}>
@@ -588,6 +605,7 @@ function NowPlaying({ open, onClose, onOpen, sheetRef }) {
 
         <div className="np-info">
           <div className="np-meta" key={'m' + t.id}>
+            <div className="np-kicker">{p.mode === 'video' ? 'TELEDYSK' : 'TERAZ GRA'}{t.album?.name ? ' · ' + t.album.name : ''}</div>
             <div className="np-title">{t.title}</div>
             <div
               className={`np-artist ${t.artistId ? 'link' : ''}`}
@@ -603,6 +621,7 @@ function NowPlaying({ open, onClose, onOpen, sheetRef }) {
             <button onClick={() => clearLogs()}>Wyczyść</button>
           </div>
         )}
+        <Visualizer />
         <Scrubber />
         <div className="np-controls">
           <button className={`icon-btn small-ctl ${p.shuffle ? 'lit' : ''}`} onClick={() => { tap(); toggleShuffle(); }}>{Icon.shuffle}</button>

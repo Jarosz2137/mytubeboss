@@ -369,3 +369,44 @@ h2 { font-size: 21px; font-weight: 700; margin: 26px 0 10px; letter-spacing: -0.
 /* looping cover-flow shelves */
 .shelf.loop { scroll-snap-type: x proximity; }
 .shelf.loop .card .cover { transition: transform .08s linear, filter .08s linear; will-change: transform; }
+
+/* ================= NOW PLAYING: BOSS LOOK ================= */
+.wm-xs { flex-direction: row; align-items: baseline; gap: 4px; }
+.wm-xs .wm-egzey { display: none; }
+.wm-xs .wm-mytube { font-size: 18px; transform: rotate(-6deg); margin: 0; }
+.wm-xs .wm-boss { font-size: 20px; margin: 0; -webkit-text-stroke: .8px #1a0b2e; filter: drop-shadow(1.5px 2px 0 #1a0b2e); }
+.np-brand { display: flex; align-items: center; justify-content: space-between; margin: 2px 2px 8px; }
+.boss-badge { font-size: 10.5px; font-weight: 800; letter-spacing: .06em; padding: 5px 9px; border-radius: 999px;
+  background: linear-gradient(135deg, rgba(255,207,92,.22), rgba(255,94,138,.22)); border: .5px solid rgba(255,207,92,.45); color: #ffe7a8;
+  box-shadow: 0 0 18px -6px rgba(255,180,80,.7); }
+
+/* synthwave scene behind everything: sun + moving grid, tinted by the cover */
+.np-scene { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.np-sun { position: absolute; left: 50%; top: 18%; width: 120vw; max-width: 620px; aspect-ratio: 1; transform: translateX(-50%); border-radius: 50%; opacity: .22;
+  background: repeating-linear-gradient(180deg, transparent 0 58%, rgba(0,0,0,.55) 58% 61%, transparent 61% 66%), linear-gradient(180deg, #ffe08a, var(--c1) 55%, var(--c2));
+  -webkit-mask: linear-gradient(#000 35%, transparent 75%); mask: linear-gradient(#000 35%, transparent 75%); filter: blur(.5px) saturate(1.3); }
+.np-grid { position: absolute; left: -50%; right: -50%; bottom: -10%; height: 46%; opacity: .32;
+  background:
+    repeating-linear-gradient(90deg, color-mix(in srgb, var(--c1) 80%, white) 0 1.5px, transparent 1.5px 60px),
+    repeating-linear-gradient(0deg, color-mix(in srgb, var(--c1) 80%, white) 0 1.5px, transparent 1.5px 46px);
+  transform: perspective(300px) rotateX(62deg); transform-origin: 50% 0;
+  -webkit-mask: linear-gradient(transparent, #000 40%); mask: linear-gradient(transparent, #000 40%);
+  animation: gridRun 1.6s linear infinite; animation-play-state: paused; }
+.np.is-playing .np-grid { animation-play-state: running; }
+@keyframes gridRun { from { background-position: 0 0, 0 0; } to { background-position: 0 0, 0 46px; } }
+
+/* chrome reflection + neon edge on the cover */
+.np-cover { -webkit-box-reflect: below 10px linear-gradient(transparent 72%, rgba(0,0,0,.28)); outline: 1px solid rgba(255,255,255,.12); outline-offset: -1px; }
+.np-cover.big { box-shadow: 0 40px 90px -10px rgba(0,0,0,.7), 0 0 0 1px rgba(255,255,255,.08), 0 0 60px -6px var(--c1), 0 0 140px -20px var(--c3); }
+
+.np-kicker { font-size: 10.5px; font-weight: 800; letter-spacing: .14em; color: color-mix(in srgb, var(--c1) 60%, white); margin-bottom: 4px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 0 12px var(--c1); }
+.np-title { font-size: 23px; font-weight: 800; letter-spacing: -.01em; }
+
+/* fake spectrum (pure CSS, no audio tap) */
+.viz { display: flex; align-items: flex-end; gap: 3px; height: 26px; margin-top: 12px; opacity: .85; }
+.viz i { flex: 1; height: 100%; border-radius: 2px; transform-origin: bottom; transform: scaleY(.12);
+  background: linear-gradient(to top, var(--c1), var(--c3)); animation: vz .7s ease-in-out infinite alternate; animation-play-state: paused; }
+.np.is-playing .viz i { animation-play-state: running; }
+@keyframes vz { 0% { transform: scaleY(.12); } 50% { transform: scaleY(.85); } 100% { transform: scaleY(.3); } }
+.np:not(.is-playing) .viz i { transform: scaleY(.12); }
