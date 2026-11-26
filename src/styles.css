@@ -467,3 +467,6 @@ h2 { font-size: 21px; font-weight: 700; margin: 26px 0 10px; letter-spacing: -0.
 .np-side.right { left: 74%; transform: translateY(-50%) perspective(700px) rotateY(-28deg) scale(.82); opacity: .55; }
 .np-side:active { opacity: .8; }
 .np-strip .np-cover.from-right, .np-strip .np-cover.from-left { animation-name: coverIn; }
+.np-cover.no-anim { animation: none !important; }
+.np-cover { transition: width .45s cubic-bezier(.2,1,.3,1), box-shadow .8s; }
+.np:not(.is-playing) .viz i { animation: none; transform: scaleY(.12); transition: transform .4s; }

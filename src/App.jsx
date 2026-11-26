@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react';
 import * as yt from './yt.js';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
 import { useCoverColors } from './colors.js';
@@ -604,19 +604,24 @@ function NowPlaying({ open, onClose, onOpen, sheetRef }) {
       if (strip && s0.onArt && (Math.abs(dx) > 70 || Math.abs(vx) > 0.6) && (goNext || goPrev)) {
         tap();
         const step = (strip.parentElement?.clientWidth || window.innerWidth) * 0.51;
-        strip.style.transition = 'transform .26s cubic-bezier(.2,.8,.3,1)';
+        strip.style.transition = 'transform .24s cubic-bezier(.25,.8,.3,1)';
         strip.style.transform = `translate3d(${dx < 0 ? -step : step}px, 0, 0)`;
-        setTimeout(() => {
-          setSlide('');
-          dx < 0 ? next() : prev();
-          requestAnimationFrame(() => { strip.style.transition = 'none'; strip.style.transform = ''; });
-        }, 260);
+        let fired = false;
+        const go = () => { if (fired) return; fired = true; strip.removeEventListener('transitionend', go); setSlide('none'); dx < 0 ? next() : prev(); };
+        strip.addEventListener('transitionend', go);
+        setTimeout(go, 320);
       } else if (strip) {
         strip.style.transition = 'transform .35s cubic-bezier(.2,1.3,.3,1)';
         strip.style.transform = '';
       }
     }
   };
+
+  // New track is centred now -> snap the strip back with no animation, before paint.
+  useLayoutEffect(() => {
+    const strip = sheet.current?.querySelector('.np-strip');
+    if (strip) { strip.style.transition = 'none'; strip.style.transform = ''; }
+  }, [t?.id]);
 
   if (!t) return null;
   const liked = !!p.liked[t.id];
@@ -670,7 +675,7 @@ function NowPlaying({ open, onClose, onOpen, sheetRef }) {
                       <Cover src={p.queue[p.index - 1].thumb} />
                     </div>
                   )}
-                  <Cover key={t.id} src={t.thumb} className={`np-cover ${p.playing ? 'big' : ''} ${slide}`} />
+                  <Cover key={t.id} src={t.thumb} className={`np-cover ${p.playing ? 'big' : ''} ${slide === 'none' ? 'no-anim' : ''}`} />
                   {p.queue[p.index + 1] && (
                     <div className="np-side right" key={'r' + p.queue[p.index + 1].id} onClick={() => { tap(); next(); }}>
                       <Cover src={p.queue[p.index + 1].thumb} />
@@ -683,7 +688,6 @@ function NowPlaying({ open, onClose, onOpen, sheetRef }) {
 
         <div className="np-info">
           <div className="np-meta" key={'m' + t.id}>
-            <div className="np-kicker">{p.mode === 'video' ? 'TELEDYSK' : 'TERAZ GRA'}{t.album?.name ? ' · ' + t.album.name : ''}</div>
             <div className="np-title">{t.title}</div>
             <div
               className={`np-artist ${t.artistId ? 'link' : ''}`}
