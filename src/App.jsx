@@ -5,7 +5,7 @@ import { useCoverColors } from './colors.js';
 import { getLogs, clearLogs } from './debuglog.js';
 import {
   usePlayer, current, playList, addNext, jump, toggle, next, prev, seek, setMode, videoElement,
-  cycleRepeat, toggleShuffle, toggleLike, useTime,
+  cycleRepeat, toggleShuffle, toggleLike, useTime, togglePip,
 } from './player.js';
 import { setBeat, beatOn, onBeat, setBeatTarget } from './beat.js';
 import { onOta, otaState, applyNow } from './ota.js';
@@ -605,8 +605,11 @@ function NowPlaying({ open, onClose, onOpen, sheetRef }) {
   // Move the single <video> engine into view when in video mode.
   useEffect(() => {
     const holder = document.getElementById('engine-holder');
+    const pop = document.getElementById('video-pop-box');
     if (open && p.mode === 'video' && videoBox.current) videoBox.current.appendChild(videoElement);
+    else if (!open && p.mode === 'video' && pop) pop.appendChild(videoElement); // floating window
     else if (holder && videoElement.parentElement !== holder) holder.appendChild(videoElement);
+    if (!videoElement.paused) videoElement.play().catch(() => {}); // moving the node can pause it
   }, [open, p.mode]);
 
   // Interactive drag: down = shrink into the mini player, sideways on the cover = skip.
@@ -727,6 +730,9 @@ function NowPlaying({ open, onClose, onOpen, sheetRef }) {
             {p.mode === 'video'
               ? (
                 <div className="np-video" ref={videoBox} onDoubleClick={goFull}>
+                  <button className="np-full pip" onClick={(e) => { e.stopPropagation(); tap(); togglePip(); }} aria-label="Obraz w obrazie">
+                    <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2" fill="none" stroke="currentColor" strokeWidth="2" /><rect x="12" y="12" width="7" height="5" rx="1" fill="currentColor" /></svg>
+                  </button>
                   <button className="np-full" onClick={(e) => { e.stopPropagation(); goFull(); }} aria-label="Pełny ekran">
                     <svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
                   </button>
@@ -794,6 +800,25 @@ function NowPlaying({ open, onClose, onOpen, sheetRef }) {
 }
 
 /* ---------------- app shell ---------------- */
+
+// Music video keeps playing in a small floating window when the big player is closed.
+function VideoPop({ show, onOpen }) {
+  const p = usePlayer();
+  if (!show || p.mode !== 'video' || !current()) return null;
+  return (
+    <div className="vpop" onClick={() => { tap(); onOpen(); }}>
+      <div id="video-pop-box" className="vpop-box" />
+      <div className="vpop-bar">
+        <button onClick={(e) => { e.stopPropagation(); tap(); togglePip(); }} aria-label="Obraz w obrazie">
+          <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2" fill="none" stroke="currentColor" strokeWidth="2" /><rect x="12" y="12" width="7" height="5" rx="1" fill="currentColor" /></svg>
+        </button>
+        <button onClick={(e) => { e.stopPropagation(); tap(); setMode('audio'); }} aria-label="Tylko dźwięk">
+          <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" /></svg>
+        </button>
+      </div>
+    </div>
+  );
+}
 
 function OtaPill() {
   const [o, setO] = useState(otaState);
@@ -890,6 +915,7 @@ export default function App() {
         <button className={tab === 'library' ? 'on' : ''} onClick={() => switchTab('library')}>{Icon.lib}<span>Biblioteka</span></button>
       </nav>
       <OtaPill />
+      <VideoPop show={!npOpen} onOpen={() => setNpOpen(true)} />
       <NowPlaying sheetRef={sheetRef} open={npOpen} onClose={() => setNpOpen(false)} onOpen={open} />
     </div>
   );

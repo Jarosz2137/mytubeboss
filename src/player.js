@@ -253,7 +253,9 @@ export function jump(i) {
   load();
 }
 
+let userPaused = false;
 export function toggle() {
+  userPaused = !el.paused;
   if (!current()) return;
   if (el.paused) el.play().catch(() => {});
   else el.pause();
@@ -302,8 +304,31 @@ export function setMode(mode) {
 }
 
 // Leaving the app while watching the video -> carry on as audio, like Premium.
+// Leaving the app with a music video: keep it going as Picture-in-Picture if iOS allows,
+// otherwise fall back to audio so the music doesn't stop.
+videoEl.setAttribute('autopictureinpicture', '');
+try { videoEl.autoPictureInPicture = true; } catch {}
+export const inPip = () => videoEl.webkitPresentationMode === 'picture-in-picture' || document.pictureInPictureElement === videoEl;
+export function togglePip() {
+  try {
+    if (videoEl.webkitSupportsPresentationMode?.('picture-in-picture')) {
+      videoEl.webkitSetPresentationMode(inPip() ? 'inline' : 'picture-in-picture');
+    } else if (document.pictureInPictureEnabled) {
+      inPip() ? document.exitPictureInPicture() : videoEl.requestPictureInPicture();
+    }
+  } catch (e) { console.warn('[pip]', e); }
+}
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden && state.mode === 'video' && state.playing) setMode('audio');
+  if (!document.hidden || state.mode !== 'video' || !state.playing) return;
+  userPaused = false;
+  setTimeout(() => {
+    if (!document.hidden || inPip()) return; // PiP took over: keep the video
+    if (state.mode === 'video') setMode('audio');
+  }, 600);
+});
+// iOS sometimes pauses the inline video when backgrounding; resume it via audio instead.
+videoEl.addEventListener('pause', () => {
+  if (document.hidden && el === videoEl && state.mode === 'video' && !inPip() && !userPaused) setMode('audio');
 });
 
 /* -------- element events -------- */
@@ -348,8 +373,8 @@ function updatePosition() {
 if ('mediaSession' in navigator) {
   const ms = navigator.mediaSession;
   const h = (a, f) => { try { ms.setActionHandler(a, f); } catch { /* unsupported */ } };
-  h('play', () => el.play());
-  h('pause', () => el.pause());
+  h('play', () => { userPaused = false; el.play(); });
+  h('pause', () => { userPaused = true; el.pause(); });
   h('nexttrack', () => next());
   h('previoustrack', () => prev());
   h('seekto', (d) => seek(d.seekTime));
