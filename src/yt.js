@@ -1,6 +1,6 @@
 // Everything that talks to YouTube lives here.
 import { Innertube, UniversalCache } from 'youtubei.js';
-import { Capacitor, CapacitorHttp } from '@capacitor/core';
+import { Capacitor, CapacitorHttp, CapacitorCookies } from '@capacitor/core';
 import { Preferences } from '@capacitor/preferences';
 
 const isNative = Capacitor.isNativePlatform();
@@ -67,6 +67,7 @@ export function getYT() {
       // Old OAuth tokens break every request -> drop them.
       await Preferences.remove({ key: CREDS_KEY });
       const cookie = (await Preferences.get({ key: COOKIE_KEY })).value || undefined;
+      if (cookie) await syncNativeCookies(cookie);
       return Innertube.create({
         fetch: isNative ? nativeFetch : devFetch,
         cache: new UniversalCache(false),
@@ -80,6 +81,17 @@ export function getYT() {
     ytPromise.catch(() => { ytPromise = null; });
   }
   return ytPromise;
+}
+
+async function syncNativeCookies(cookie) {
+  if (!isNative) return;
+  const pairs = cookie.split(';').map((c) => c.trim()).filter((c) => c.includes('='));
+  for (const url of ['https://music.youtube.com', 'https://www.youtube.com']) {
+    for (const pair of pairs) {
+      const i = pair.indexOf('=');
+      try { await CapacitorCookies.setCookie({ url, key: pair.slice(0, i), value: pair.slice(i + 1) }); } catch { /* ignore */ }
+    }
+  }
 }
 
 export async function isSignedIn() {
@@ -99,6 +111,7 @@ export async function signInWithCookie(raw) {
 
 export async function signOut() {
   await Preferences.remove({ key: COOKIE_KEY });
+  if (isNative) { try { await CapacitorCookies.clearAllCookies(); } catch { /* ignore */ } }
   ytPromise = null;
   emit({ type: 'signed-out' });
 }
@@ -276,7 +289,7 @@ export async function album(id) {
 export async function playlist(id, maxPages = 4) {
   const yt = await getYT();
   let p = await yt.music.getPlaylist(id);
-  const h = p.header || {};
+  const h = p.header?.header || p.header || {};
   const thumb = bestThumb(h) || bestThumb(p.background);
   const tracks = [];
   const take = (pl) => (pl.items || []).forEach((t) => { const n = norm(t, { type: 'song' }); if (isPlayable(n)) tracks.push(n); });

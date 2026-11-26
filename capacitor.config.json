@@ -5,9 +5,15 @@
   "ios": {
     "contentInset": "never",
     "allowsLinkPreview": false,
-    "scrollEnabled": true
+    "scrollEnabled": true,
+    "webContentsDebuggingEnabled": true
   },
   "plugins": {
-    "CapacitorHttp": { "enabled": false }
+    "CapacitorHttp": {
+      "enabled": false
+    },
+    "CapacitorCookies": {
+      "enabled": true
+    }
   }
 }
