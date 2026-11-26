@@ -490,7 +490,7 @@ export async function sabrAudioBlobUrl(id, onProgress) {
     clientInfo: { clientName: 1, clientVersion: c.clientVersion, osName: c.osName, osVersion: c.osVersion },
     callbacks: {
       // YouTube asks for attestation (~1 min in); without this the stream just stops.
-      onMintPoToken: minter ? () => minter.mint(visitorData) : undefined,
+      onMintPoToken: minter ? async () => { console.info('[SABR] minting PO for', visitorData?.slice(0, 12)); return minter.mint(visitorData); } : undefined,
       onReloadPlayerResponse: async () => {
         const r = await loadInfo();
         return { serverAbrStreamingUrl: r.serverAbrStreamingUrl, videoPlaybackUstreamerConfig: r.videoPlaybackUstreamerConfig };
@@ -498,7 +498,7 @@ export async function sabrAudioBlobUrl(id, onProgress) {
     },
   });
   let sps = '';
-  try { sabr.on('streamProtectionStatusUpdate', (x) => { sps = String(x?.status ?? ''); }); } catch { /* */ }
+  try { sabr.on('streamProtectionStatusUpdate', (x) => { sps = String(x?.status ?? ''); console.info('[SABR] sps', x); }); } catch { /* */ }
   let sabrErr = null;
   try { sabr.on('error', (e) => { sabrErr = e; }); } catch { /* */ }
   const { audioStream, videoStream, selectedFormats } = sabr.start({
@@ -523,7 +523,11 @@ export async function sabrAudioBlobUrl(id, onProgress) {
   }, 2000);
   try {
     for (;;) {
-      const { done, value } = await reader.read();
+      let res;
+      try { res = await reader.read(); } catch (e) {
+        throw new Error('SABR: ' + (e?.message || e) + ' po ' + Math.round(bytes / 1024) + ' KB (sps ' + sps + ')');
+      }
+      const { done, value } = res;
       if (done) break;
       parts.push(value);
       bytes += value.byteLength;

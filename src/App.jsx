@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import * as yt from './yt.js';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
 import { useCoverColors } from './colors.js';
+import { getLogs, clearLogs } from './debuglog.js';
 import {
   usePlayer, current, playList, addNext, jump, toggle, next, prev, seek, setMode, videoElement,
 } from './player.js';
@@ -432,6 +433,12 @@ function NowPlaying({ open, onClose, onOpen }) {
             onClick={() => { if (t.artistId) { onClose(); onOpen({ type: 'artist', id: t.artistId }); } }}
           >{t.subtitle}</div>
           {p.error && <div className="np-error">{p.error}</div>}
+          {p.error && (
+            <div className="dbg">
+              <button onClick={() => { navigator.clipboard?.writeText(getLogs()).then(() => alert('Skopiowane — wklej Claude')).catch(() => {}); }}>Kopiuj logi</button>
+              <button onClick={() => clearLogs()}>Wyczyść</button>
+            </div>
+          )}
         </div>
         <Scrubber />
         <div className="np-controls">

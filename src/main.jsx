@@ -1,3 +1,4 @@
+import './debuglog.js';
 import { createRoot } from 'react-dom/client';
 import App from './App.jsx';
 import '@fontsource/anton/400.css';
