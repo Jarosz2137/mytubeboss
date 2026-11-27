@@ -16,9 +16,29 @@ requestAnimationFrame(count);
 // What happened recently: every tagged log line ([beat], [prefetch], [SABR], [ota], ...) is remembered
 // for a few seconds, so a spike can say what it happened during.
 const recent = [];
+// Black box: the last log lines survive a web-view kill (localStorage), so after a crash the next
+// session prints what was happening right before it.
+const BOX = 'mtb-blackbox';
+let box = [], boxDirty = false;
+try {
+  const prev = JSON.parse(localStorage.getItem(BOX) || 'null');
+  if (prev && !prev.clean && prev.lines?.length) {
+    setTimeout(() => {
+      console.warn(`[crash] poprzednia sesja urwała się nagle (${new Date(prev.at).toLocaleTimeString()}), ostatnie zdarzenia:`);
+      prev.lines.forEach((l) => console.warn('[crash] ' + l));
+    }, 500);
+  }
+} catch { /* */ }
+const saveBox = (clean = false) => { try { localStorage.setItem(BOX, JSON.stringify({ at: Date.now(), clean, lines: box })); } catch { /* */ } boxDirty = false; };
+setInterval(() => { if (boxDirty) saveBox(); }, 1000);
+window.addEventListener('pagehide', () => saveBox(true));
 for (const k of ['log', 'info', 'warn']) {
   const orig = console[k].bind(console);
   console[k] = (...a) => {
+    const line = typeof a[0] === 'string' ? a[0] : '';
+    if (line && !line.startsWith('[DEBUG]') && !line.startsWith('[crash]')) {
+      box.push(new Date().toLocaleTimeString() + ' ' + line.slice(0, 220)); if (box.length > 40) box.shift(); boxDirty = true;
+    }
     const m = typeof a[0] === 'string' && a[0].match(/^\[([a-zA-Z]+)\]/);
     if (m && m[1] !== 'life' && m[1] !== 'DEBUG') { recent.push([performance.now(), m[1]]); if (recent.length > 40) recent.shift(); }
     orig(...a);
