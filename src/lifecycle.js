@@ -3,15 +3,51 @@
 import { audioElement, videoElement } from './player.js';
 
 let frames = 0, probe = null;
-const count = () => { frames++; requestAnimationFrame(count); };
+// Frame stats (iOS gives web code no CPU% / RAM numbers - those need the native side in the next IPA;
+// here we measure what the user feels: frame times and main-thread lag).
+let lastF = 0, slowF = 0, worstF = 0;
+const count = (now) => {
+  frames++;
+  if (lastF && !document.hidden) { const dt = now - lastF; if (dt > 50) slowF++; if (dt > worstF) worstF = dt; }
+  lastF = now; requestAnimationFrame(count);
+};
 requestAnimationFrame(count);
+
+// What happened recently: every tagged log line ([beat], [prefetch], [SABR], [ota], ...) is remembered
+// for a few seconds, so a spike can say what it happened during.
+const recent = [];
+for (const k of ['log', 'info', 'warn']) {
+  const orig = console[k].bind(console);
+  console[k] = (...a) => {
+    const m = typeof a[0] === 'string' && a[0].match(/^\[([a-zA-Z]+)\]/);
+    if (m && m[1] !== 'life' && m[1] !== 'DEBUG') { recent.push([performance.now(), m[1]]); if (recent.length > 40) recent.shift(); }
+    orig(...a);
+  };
+}
+const during = () => {
+  const t = performance.now();
+  const tags = [...new Set(recent.filter(([at]) => t - at < 4000).map(([, tag]) => tag))];
+  return tags.length ? tags.join('+') : 'nic szczególnego';
+};
+
+// Main-thread lag: a 250 ms timer that fires late = the CPU was busy with our JS / layout.
+let lagSum = 0, lagN = 0, lagMax = 0, expect = performance.now() + 250;
+setInterval(() => {
+  const now = performance.now(), lag = Math.max(0, now - expect);
+  expect = now + 250;
+  if (document.hidden) return;
+  lagSum += lag; lagN++; if (lag > lagMax) lagMax = lag;
+  if (lag > 120) console.log(`[life] SKOK: wątek zablokowany ${Math.round(lag)} ms, w trakcie: ${during()}`);
+}, 250);
 
 function snapshot(tag) {
   const anims = document.getAnimations?.() || [];
   const running = anims.filter((a) => a.playState === 'running').length;
   const media = (el) => (el.paused ? 'pauza' : 'gra') + (el.src || el.srcObject ? '' : ' (pusty)');
-  console.log(`[life] ${tag}: ukryta=${document.hidden} audio=${media(audioElement)} video=${media(videoElement)} animacje=${running}/${anims.length} klatki/30s=${frames} lite=${document.documentElement.classList.contains('lite')}`);
-  frames = 0;
+  const avgLag = lagN ? Math.round(lagSum / lagN) : 0;
+  const nodes = document.getElementsByTagName('*').length;
+  console.log(`[life] ${tag}: ukryta=${document.hidden} audio=${media(audioElement)} video=${media(videoElement)} animacje=${running}/${anims.length} fps=${Math.round(frames / 30)} wolne_klatki=${slowF} najgorsza=${Math.round(worstF)}ms lag_śr=${avgLag}ms lag_max=${Math.round(lagMax)}ms elementy=${nodes} lite=${document.documentElement.classList.contains('lite')} ostatnio=${during()}`);
+  frames = 0; slowF = 0; worstF = 0; lagSum = 0; lagN = 0; lagMax = 0;
 }
 
 document.addEventListener('visibilitychange', () => {
