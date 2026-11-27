@@ -862,7 +862,9 @@ function NowPlaying({ open, onClose, onOpen, sheetRef }) {
     const pop = document.getElementById('video-pop-box');
     if (open && p.mode === 'video' && videoBox.current) videoBox.current.appendChild(videoElement);
     else if (!open && p.mode === 'video' && pop) pop.appendChild(videoElement); // floating window
-    else if (holder && videoElement.parentElement !== holder) holder.appendChild(videoElement);
+    // While a music video is on (incl. system PiP), don't park it in the hidden holder:
+    // moving the element mid-PiP closes the PiP window.
+    else if (p.mode !== 'video' && holder && videoElement.parentElement !== holder) holder.appendChild(videoElement);
     if (!videoElement.paused) videoElement.play().catch(() => {}); // moving the node can pause it
   }, [open, p.mode]);
 
