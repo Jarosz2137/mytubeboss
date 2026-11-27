@@ -1007,3 +1007,7 @@ h1.big { font-size: 36px; margin: 22px 0 16px; background: linear-gradient(90deg
 @keyframes toolsIn { from { opacity: 0; transform: translateY(-6px); } }
 .more-btn { position: relative; }
 .more-btn.dot::after { content: ''; position: absolute; top: 8px; right: 6px; width: 7px; height: 7px; border-radius: 50%; background: #ffe08a; box-shadow: 0 0 8px #ff5e8a; }
+
+/* perf: no live reflection, no per-frame filters on the big cover */
+.np-cover { -webkit-box-reflect: none !important; }
+.np.beat-on .np-strip .np-cover { filter: none !important; }

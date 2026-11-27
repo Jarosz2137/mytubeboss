@@ -108,9 +108,14 @@ window.addEventListener('mtb-audio', (e) => {
   if (current()?.id === id) analyse(id, parts, mime);
 });
 
-function loop() {
+let lastT = 0;
+const lastV = {};
+function put(st, k, v) { if (Math.abs((lastV[k] ?? -9) - v) < 0.004) return; lastV[k] = v; st.setProperty(k, v.toFixed(3)); }
+function loop(now = 0) {
   raf = requestAnimationFrame(loop);
   if (!target || document.hidden) return;
+  if (now - lastT < 32) return; // ~30 fps is plenty, 120 Hz ProMotion was cooking the phone
+  lastT = now;
   const t = current();
   const env = t && envs.get(t.id);
   let v = 0;
@@ -131,11 +136,7 @@ function loop() {
   const ease = (prev, t) => prev + (t - prev) * (t > prev ? 0.6 : 0.08);
   sm.bass = ease(sm.bass, bass); sm.mid = ease(sm.mid, mid); sm.high = ease(sm.high, high);
   const st = target.style;
-  st.setProperty('--pulse', cur.toFixed(4));
-  st.setProperty('--bass', sm.bass.toFixed(3));
-  st.setProperty('--mid', sm.mid.toFixed(3));
-  st.setProperty('--high', sm.high.toFixed(3));
-  st.setProperty('--kick', kick.toFixed(3));
+  put(st, '--pulse', cur); put(st, '--bass', sm.bass); put(st, '--mid', sm.mid); put(st, '--high', sm.high); put(st, '--kick', kick);
 }
 const sm = { bass: 0, mid: 0, high: 0 };
 let kick = 0;
@@ -163,6 +164,7 @@ export async function setBeat(on) {
     cancelAnimationFrame(raf); raf = 0;
     target?.style.setProperty('--pulse', '1');
     ['--bass', '--mid', '--high', '--kick'].forEach((k) => target?.style.setProperty(k, '0'));
+    for (const k in lastV) delete lastV[k];
   }
   subs.forEach((f) => f(enabled));
 }

@@ -897,10 +897,11 @@ function Visualizer() {
   useEffect(() => {
     const bars = Array.from(wrap.current?.querySelectorAll('i') || []);
     const level = new Float32Array(N);
-    let raf = 0, t0 = performance.now();
+    let raf = 0, last = 0, t0 = performance.now();
     const loop = (now) => {
       raf = requestAnimationFrame(loop);
-      if (document.hidden) return;
+      if (document.hidden || now - last < 32) return;
+      last = now;
       const L = bandLevels();
       const mid = (N - 1) / 2;
       for (let k = 0; k < N; k++) {
@@ -912,7 +913,8 @@ function Visualizer() {
           target = Math.max(0.08, v * (1 - d * 0.35));
         }
         level[k] += (target - level[k]) * (target > level[k] ? 0.45 : 0.12);
-        bars[k].style.transform = `scaleY(${level[k].toFixed(3)})`;
+        const v = level[k].toFixed(2);
+        if (bars[k]._v !== v) { bars[k]._v = v; bars[k].style.transform = `scaleY(${v})`; }
       }
     };
     raf = requestAnimationFrame(loop);
