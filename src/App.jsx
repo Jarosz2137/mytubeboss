@@ -13,6 +13,7 @@ import { onOta, otaState, applyNow, BUILD, recheck } from './ota.js';
 import { canGoogleLogin, googleSignIn } from './googleLogin.js';
 import { loadLocal, onLocal, localLists, getLocal, createLocal, addToLocal, removeFromLocal, renameLocal, deleteLocal, localCard, isLocalId, onAddSheet, openAddSheet } from './local.js';
 import { readPlaylist, matchTracks, detectSource } from './importer.js';
+import { getLyrics } from './lyrics.js';
 import { loadIndex, onOffline, offlineState, isDownloaded, isQueued, downloadTracks, downloadedTracks, removeDownload } from './offline.js';
 
 /* ---------------- helpers ---------------- */
@@ -1030,12 +1031,37 @@ function Scene({ id }) {
   );
 }
 
+function LyricsPanel({ t }) {
+  const [ly, setLy] = useState(undefined);
+  const { time } = useTime();
+  const box = useRef(null);
+  useEffect(() => { setLy(undefined); let alive = true; getLyrics(t).then((r) => alive && setLy(r)); return () => { alive = false; }; }, [t?.id]);
+  let cur = -1;
+  if (ly?.synced) for (let i = 0; i < ly.lines.length; i++) { if (ly.lines[i].t <= time + 0.25) cur = i; else break; }
+  useEffect(() => {
+    const el = box.current?.querySelector('.ly-line.on');
+    if (el && box.current) box.current.scrollTo({ top: el.offsetTop - box.current.clientHeight * 0.38, behavior: 'smooth' });
+  }, [cur]);
+  return (
+    <div className="np-lyrics" ref={box}>
+      {ly === undefined && <Loader />}
+      {ly === null && <p className="ly-empty">Nie znalazłem tekstu do tego utworu.</p>}
+      {ly?.lines.map((l, i) => (
+        <p key={i} className={`ly-line ${ly.synced ? (i === cur ? 'on' : i < cur ? 'past' : '') : 'plain'}`}
+          onClick={() => { if (ly.synced) { tap(); seek(l.t); } }}>{l.text || '♪'}</p>
+      ))}
+      {ly && <p className="ly-src">Tekst: {ly.source}{ly.synced ? ' · zsynchronizowany' : ''}</p>}
+    </div>
+  );
+}
+
 function NowPlaying({ open, onClose, onOpen, sheetRef }) {
   const p = usePlayer();
   const t = current();
   const videoBox = useRef();
   const sheet = sheetRef;
   const [showQueue, setShowQueue] = useState(false);
+  const [showLyrics, setShowLyrics] = useState(false);
   const [slide, setSlide] = useState('');
   const g = useRef(null);
   const [beat, setBeatState] = useState(beatOn());
@@ -1164,11 +1190,16 @@ function NowPlaying({ open, onClose, onOpen, sheetRef }) {
             <button className="icon-btn" onClick={() => { tap(); if (!pickOutput()) alert('Zmień wyjście w Centrum sterowania (ikona AirPlay przy odtwarzaczu).'); }} aria-label="Wybierz urządzenie">
               <svg viewBox="0 0 24 24"><path d="M6 17H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h16a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1h-2" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /><path d="M12 14l5 6H7z" fill="currentColor" /></svg>
             </button
-            >{' '}<button className={`icon-btn ${showQueue ? 'lit' : ''}`} onClick={() => { tap(); setShowQueue((x) => !x); }}>{Icon.queue}</button>
+            >{' '}<button className={`icon-btn ${showLyrics ? 'lit' : ''}`} onClick={() => { tap(); setShowQueue(false); setShowLyrics((x) => !x); }} aria-label="Tekst">
+              <svg viewBox="0 0 24 24"><path d="M5 6h14M5 11h10M5 16h7" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" /><circle cx="18" cy="17" r="2.6" fill="none" stroke="currentColor" strokeWidth="2" /><path d="M20.6 17V9.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
+            </button
+            >{' '}<button className={`icon-btn ${showQueue ? 'lit' : ''}`} onClick={() => { tap(); setShowLyrics(false); setShowQueue((x) => !x); }}>{Icon.queue}</button>
           </div>
         </div>
 
-        {showQueue ? (
+        {showLyrics && !showQueue ? (
+          <LyricsPanel t={t} />
+        ) : showQueue ? (
           <div className="np-queue">
             <h3>Kolejka</h3>
             {p.queue.map((q, i) => (
