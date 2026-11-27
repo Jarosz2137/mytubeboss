@@ -179,3 +179,148 @@ class GoogleLoginViewController: UIViewController, WKNavigationDelegate {
         DispatchQueue.main.async { self.navigationController?.dismiss(animated: true, completion: then) ?? then() }
     }
 }
+
+// ---- Generic in-app browser: all login logic lives in JS (ships via OTA), native only executes commands ----
+@objc(MTBBrowserPlugin)
+public class MTBBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
+    public let identifier = "MTBBrowserPlugin"
+    public let jsName = "MTBBrowser"
+    public let pluginMethods: [CAPPluginMethod] = [
+        CAPPluginMethod(name: "open", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "load", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "getCookies", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "setCookies", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "cover", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "close", returnType: CAPPluginReturnPromise),
+    ]
+    private var screen: MTBBrowserViewController?
+
+    @objc func open(_ call: CAPPluginCall) {
+        let urlString = call.getString("url") ?? ""
+        let ua = call.getString("userAgent")
+        let title = call.getString("title") ?? ""
+        guard let url = URL(string: urlString) else { call.reject("bad url"); return }
+        DispatchQueue.main.async {
+            let vc = MTBBrowserViewController(start: url, userAgent: ua, onNav: { [weak self] u in
+                self?.notifyListeners("nav", data: ["url": u])
+            }, onClose: { [weak self] in
+                self?.notifyListeners("closed", data: [:])
+                self?.screen = nil
+            })
+            vc.title = title
+            self.screen = vc
+            let nav = UINavigationController(rootViewController: vc)
+            nav.modalPresentationStyle = .pageSheet
+            self.bridge?.viewController?.present(nav, animated: true)
+            call.resolve()
+        }
+    }
+
+    @objc func load(_ call: CAPPluginCall) {
+        guard let u = URL(string: call.getString("url") ?? "") else { call.reject("bad url"); return }
+        DispatchQueue.main.async { self.screen?.web?.load(URLRequest(url: u)); call.resolve() }
+    }
+
+    @objc func getCookies(_ call: CAPPluginCall) {
+        let suffix = call.getString("domain") ?? ""
+        DispatchQueue.main.async {
+            guard let store = self.screen?.web?.configuration.websiteDataStore.httpCookieStore else { call.resolve(["cookies": []]); return }
+            store.getAllCookies { cookies in
+                let list = cookies.filter { suffix.isEmpty || $0.domain.hasSuffix(suffix) }.map { ["name": $0.name, "value": $0.value, "domain": $0.domain] }
+                call.resolve(["cookies": list, "url": self.screen?.web?.url?.absoluteString ?? ""])
+            }
+        }
+    }
+
+    @objc func setCookies(_ call: CAPPluginCall) {
+        let items = call.getArray("cookies", JSObject.self) ?? []
+        DispatchQueue.main.async {
+            guard let store = self.screen?.web?.configuration.websiteDataStore.httpCookieStore else { call.resolve(); return }
+            let group = DispatchGroup()
+            let expires = Date().addingTimeInterval(60 * 60 * 24 * 365)
+            for it in items {
+                guard let d = it["domain"] as? String, let n = it["name"] as? String, let v = it["value"] as? String,
+                      let c = HTTPCookie(properties: [.domain: d, .path: "/", .name: n, .value: v, .secure: "TRUE", .expires: expires]) else { continue }
+                group.enter(); store.setCookie(c) { group.leave() }
+            }
+            group.notify(queue: .main) { call.resolve() }
+        }
+    }
+
+    @objc func cover(_ call: CAPPluginCall) {
+        let show = call.getBool("show") ?? true
+        let text = call.getString("text") ?? ""
+        DispatchQueue.main.async { self.screen?.setCover(show, text: text); call.resolve() }
+    }
+
+    @objc func close(_ call: CAPPluginCall) {
+        DispatchQueue.main.async {
+            let vc = self.screen
+            self.screen = nil
+            vc?.closeQuietly { call.resolve() }
+            if vc == nil { call.resolve() }
+        }
+    }
+}
+
+class MTBBrowserViewController: UIViewController, WKNavigationDelegate {
+    private let start: URL
+    private let userAgent: String?
+    private let onNav: (String) -> Void
+    private let onClose: () -> Void
+    var web: WKWebView?
+    private let coverView = UIView()
+    private let coverLabel = UILabel()
+    private var quiet = false
+
+    init(start: URL, userAgent: String?, onNav: @escaping (String) -> Void, onClose: @escaping () -> Void) {
+        self.start = start; self.userAgent = userAgent; self.onNav = onNav; self.onClose = onClose
+        super.init(nibName: nil, bundle: nil)
+    }
+    required init?(coder: NSCoder) { fatalError() }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        view.backgroundColor = .black
+        navigationItem.leftBarButtonItem = UIBarButtonItem(barButtonSystemItem: .cancel, target: self, action: #selector(cancel))
+        let cfg = WKWebViewConfiguration()
+        cfg.websiteDataStore = .nonPersistent()
+        cfg.mediaTypesRequiringUserActionForPlayback = .all
+        let w = WKWebView(frame: view.bounds, configuration: cfg)
+        w.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        w.customUserAgent = userAgent ?? "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1"
+        w.navigationDelegate = self
+        view.addSubview(w)
+        web = w
+        coverView.frame = view.bounds
+        coverView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        coverView.backgroundColor = UIColor(red: 0.04, green: 0.04, blue: 0.05, alpha: 1)
+        coverView.isHidden = true
+        let spinner = UIActivityIndicatorView(style: .large)
+        spinner.color = .white; spinner.startAnimating()
+        spinner.translatesAutoresizingMaskIntoConstraints = false
+        coverLabel.textColor = .white
+        coverLabel.font = .systemFont(ofSize: 17, weight: .semibold)
+        coverLabel.translatesAutoresizingMaskIntoConstraints = false
+        coverView.addSubview(spinner); coverView.addSubview(coverLabel)
+        NSLayoutConstraint.activate([
+            spinner.centerXAnchor.constraint(equalTo: coverView.centerXAnchor),
+            spinner.centerYAnchor.constraint(equalTo: coverView.centerYAnchor, constant: -16),
+            coverLabel.centerXAnchor.constraint(equalTo: coverView.centerXAnchor),
+            coverLabel.topAnchor.constraint(equalTo: spinner.bottomAnchor, constant: 14),
+        ])
+        view.addSubview(coverView)
+        w.load(URLRequest(url: start))
+    }
+
+    func setCover(_ show: Bool, text: String) { coverLabel.text = text; coverView.isHidden = !show }
+
+    func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) { onNav(webView.url?.absoluteString ?? "") }
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) { onNav(webView.url?.absoluteString ?? "") }
+
+    @objc private func cancel() { navigationController?.dismiss(animated: true) { self.onClose() } }
+    func closeQuietly(_ then: @escaping () -> Void) {
+        quiet = true
+        if let nav = navigationController { nav.dismiss(animated: true, completion: then) } else { then() }
+    }
+}
