@@ -1,9 +1,8 @@
 # Builds an installable Android APK (debug-signed, fine for sideloading / sending to friends).
 name: Build Android (APK)
+# Only on demand (Actions -> Build Android (APK) -> Run workflow); app updates arrive via OTA.
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
 jobs:
   build:
     runs-on: ubuntu-latest
