@@ -8,3 +8,6 @@ import './styles.css';
 
 createRoot(document.getElementById('root')).render(<App />);
 initOta();
+
+// App in background / screen off: freeze every CSS animation (nobody sees them; zero visual cost).
+document.addEventListener('visibilitychange', () => document.documentElement.classList.toggle('bg-idle', document.hidden));

@@ -1071,3 +1071,6 @@ h1.big { font-size: 36px; margin: 22px 0 16px; background: linear-gradient(90deg
 /* the pulsing cover gets its own layer, so scale is compositor-only: shadow + reflection are drawn once */
 .np-strip .np-cover { will-change: transform, scale; }
 .np-scene { will-change: opacity; }
+
+/* app hidden -> nothing animates */
+.bg-idle *, .bg-idle *::before, .bg-idle *::after { animation-play-state: paused !important; transition: none !important; }
