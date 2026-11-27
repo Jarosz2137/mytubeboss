@@ -986,3 +986,4 @@ h1.big { font-size: 36px; margin: 22px 0 16px; background: linear-gradient(90deg
 .np-strip .np-side.left { transform: translateY(-50%) perspective(700px) rotateY(calc(28deg * (1 - var(--pl, 0)))) scale(calc(.82 + .7 * var(--pl, 0))); opacity: calc(.55 + .45 * var(--pl, 0)); }
 .np-strip .np-side.right { transform: translateY(-50%) perspective(700px) rotateY(calc(-28deg * (1 - var(--pr, 0)))) scale(calc(.82 + .7 * var(--pr, 0))); opacity: calc(.55 + .45 * var(--pr, 0)); }
 .np-strip[data-dir=r] .np-side.right, .np-strip[data-dir=l] .np-side.left { z-index: 3; }
+.np.beat-on .np-strip .np-cover { scale: calc(var(--pulse, 1) * (1 - .34 * var(--sp, 0))); }
