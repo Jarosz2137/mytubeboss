@@ -6,7 +6,7 @@ import { useCoverColors } from './colors.js';
 import { getLogs, clearLogs } from './debuglog.js';
 import {
   usePlayer, current, playList, addNext, jump, toggle, next, prev, seek, setMode, videoElement,
-  cycleRepeat, toggleShuffle, toggleLike, useTime, togglePip, pickOutput, dismissLoginPrompt,
+  cycleRepeat, toggleShuffle, toggleLike, useTime, togglePip, pickOutput, dismissLoginPrompt, pipIfVideo,
 } from './player.js';
 import { setBeat, beatOn, onBeat, setBeatTarget, restoreBeat, beatStatus } from './beat.js';
 import { onOta, otaState, applyNow, BUILD, recheck } from './ota.js';
@@ -1065,7 +1065,7 @@ function NowPlaying({ open, onClose, onOpen, sheetRef }) {
 // Music video keeps playing in a small floating window when the big player is closed.
 function VideoPop({ show, onOpen }) {
   const p = usePlayer();
-  if (!show || p.mode !== 'video' || !current()) return null;
+  if (!show || p.mode !== 'video' || p.pip || !current()) return null;
   return (
     <div className="vpop" onClick={() => { tap(); onOpen(); }}>
       <div id="video-pop-box" className="vpop-box" />
@@ -1087,9 +1087,12 @@ function VersionLine() {
   useEffect(() => onOta(setO), []);
   const label = { idle: '', checking: 'sprawdzam…', latest: 'aktualna', downloading: `pobieram ${o.version}…`, ready: 'nowa wersja gotowa', error: `błąd: ${o.message || ''}` }[o.status] || o.status;
   return (
-    <button className="version-line" onClick={() => (o.status === 'ready' ? applyNow() : recheck())}>
-      Boss build {BUILD || 'dev'}{o.remote ? ` · serwer ${o.remote}` : ''}{label ? ` · ${label}` : ''}
-    </button>
+    <div className="version-wrap">
+      <button className="version-line" onClick={() => (o.status === 'ready' ? applyNow() : recheck())}>
+        Boss build {BUILD || 'dev'}{o.remote ? ` · serwer ${o.remote}` : ''}{label ? ` · ${label}` : ''}
+      </button>
+      <button className="version-line logs" onClick={() => { navigator.clipboard?.writeText(getLogs()).then(() => alert('Logi skopiowane, wklej je Claude')).catch(() => alert('Nie udało się skopiować')); }}>Kopiuj logi</button>
+    </div>
   );
 }
 
@@ -1256,7 +1259,7 @@ export default function App() {
       <OfflineBar />
       <AddSheet />
       <VideoPop show={!npOpen} onOpen={() => setNpOpen(true)} />
-      <NowPlaying sheetRef={sheetRef} open={npOpen} onClose={() => setNpOpen(false)} onOpen={open} />
+      <NowPlaying sheetRef={sheetRef} open={npOpen} onClose={() => { pipIfVideo(); setNpOpen(false); }} onOpen={open} />
     </div>
   );
 }

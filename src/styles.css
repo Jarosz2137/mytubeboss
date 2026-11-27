@@ -692,3 +692,6 @@ html, body { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 .welcome-lead { font-size: 18px; line-height: 1.45; color: #e9e3f2; margin: 6px 0 10px; }
 .welcome .google-btn { width: 100%; }
 .welcome .hint.small { font-size: 12px; opacity: .75; }
+.version-wrap { display: flex; flex-direction: column; align-items: center; gap: 2px; margin-bottom: 30px; }
+.version-wrap .version-line { margin: 0; }
+.version-line.logs { text-decoration: underline; padding: 8px 12px; }

@@ -373,8 +373,14 @@ const keepVideoGoing = () => { if (state.mode === 'video' && !userPaused && vide
 videoEl.addEventListener('webkitpresentationmodechanged', () => {
   console.info('[pip] mode', videoEl.webkitPresentationMode);
   if (inPip()) { pipPendingAt = 0; keepVideoGoing(); }
+  set({ pip: inPip() });
 });
-videoEl.addEventListener('enterpictureinpicture', () => { pipPendingAt = 0; keepVideoGoing(); });
+videoEl.addEventListener('enterpictureinpicture', () => { pipPendingAt = 0; keepVideoGoing(); set({ pip: true }); });
+videoEl.addEventListener('leavepictureinpicture', () => set({ pip: false }));
+export function pipIfVideo() {
+  if (state.mode === 'video' && !videoEl.paused && !inPip()) { pipPendingAt = Date.now(); togglePip(); return true; }
+  return false;
+}
 export function togglePip() {
   try {
     if (videoEl.webkitSupportsPresentationMode?.('picture-in-picture')) {
