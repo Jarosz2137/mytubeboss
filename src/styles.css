@@ -703,3 +703,10 @@ html, body { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
   border-radius: 2px; background: linear-gradient(to top, color-mix(in srgb, var(--c1) 85%, white) 0%, var(--c1) 55%, #ffe08a 100%); will-change: transform; }
 .viz.real b { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; border-radius: 1px; background: #fff; opacity: .85; will-change: transform; }
 .np:not(.is-playing) .viz.real i { transform: scaleY(.06); }
+
+/* ===== modern waveform visualizer ===== */
+.viz.wave { display: flex; align-items: center; justify-content: space-between; gap: 0; height: 34px; margin-top: 14px; opacity: 1;
+  filter: drop-shadow(0 0 8px color-mix(in srgb, var(--c1) 60%, transparent)); }
+.viz.wave i { flex: none; width: 3px; height: 100%; border-radius: 3px; animation: none !important; transform: scaleY(.08); transform-origin: center;
+  background: linear-gradient(to bottom, color-mix(in srgb, var(--c1) 70%, white), var(--c1) 50%, color-mix(in srgb, var(--c2) 80%, white)); will-change: transform; }
+.np:not(.is-playing) .viz.wave i { transition: transform .5s ease; transform: scaleY(.08) !important; }

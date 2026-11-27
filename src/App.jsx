@@ -781,39 +781,38 @@ function MiniPlayer({ hidden, onDrag, onDragEnd }) {
   );
 }
 
-// Car-stereo style spectrum: real band levels from the analysed song, with falling peak caps.
+// Modern live waveform: thin rounded bars growing from the centre, driven by the song's real
+// band levels (bass in the middle, highs to the sides), smoothed, tinted by the cover.
 function Visualizer() {
-  const N = 28;
+  const N = 41;
   const wrap = useRef(null);
   useEffect(() => {
     const bars = Array.from(wrap.current?.querySelectorAll('i') || []);
-    const caps = Array.from(wrap.current?.querySelectorAll('b') || []);
-    const level = new Float32Array(N), peak = new Float32Array(N), hold = new Float32Array(N);
-    let raf = 0;
-    const loop = () => {
+    const level = new Float32Array(N);
+    let raf = 0, t0 = performance.now();
+    const loop = (now) => {
       raf = requestAnimationFrame(loop);
       if (document.hidden) return;
       const L = bandLevels();
+      const mid = (N - 1) / 2;
       for (let k = 0; k < N; k++) {
-        let target = 0.06;
+        const d = Math.abs(k - mid) / mid; // 0 centre .. 1 edge
+        let target = 0.08 + 0.04 * Math.sin((now - t0) / 700 + k * 0.5); // idle shimmer
         if (L) {
-          const pos = (k / (N - 1)) * (L.length - 1), a = Math.floor(pos), f = pos - a;
-          target = Math.max(0.06, (L[a] * (1 - f) + (L[a + 1] ?? L[a]) * f) * (0.9 + 0.1 * Math.sin(k * 1.7)));
+          const pos = d * (L.length - 1), a = Math.floor(pos), f = pos - a;
+          const v = L[a] * (1 - f) + (L[a + 1] ?? L[a]) * f;
+          target = Math.max(0.08, v * (1 - d * 0.35));
         }
-        level[k] = target > level[k] ? target : level[k] * 0.86 + target * 0.14; // fast attack, slow release
-        if (level[k] >= peak[k]) { peak[k] = level[k]; hold[k] = 18; }
-        else if (hold[k] > 0) hold[k]--;
-        else peak[k] = Math.max(level[k], peak[k] - 0.012);
+        level[k] += (target - level[k]) * (target > level[k] ? 0.45 : 0.12);
         bars[k].style.transform = `scaleY(${level[k].toFixed(3)})`;
-        caps[k].style.transform = `translateY(${(-peak[k] * 26).toFixed(1)}px)`;
       }
     };
-    loop();
+    raf = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(raf);
   }, []);
   return (
-    <div className="viz real" ref={wrap} aria-hidden="true">
-      {[...Array(N)].map((_, i) => <span key={i}><i /><b /></span>)}
+    <div className="viz wave" ref={wrap} aria-hidden="true">
+      {[...Array(N)].map((_, i) => <i key={i} />)}
     </div>
   );
 }
