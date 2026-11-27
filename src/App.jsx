@@ -400,7 +400,7 @@ function SearchView({ onOpen }) {
 }
 
 // Playlists stored on the phone + import from Spotify / Apple Music.
-function LocalShelf({ onOpen }) {
+function LocalShelf({ onOpen, signedIn = false }) {
   const [lists, setLists] = useState(localLists());
   const [importing, setImporting] = useState(false);
   useEffect(() => { loadLocal().then(setLists); return onLocal((l) => setLists([...l])); }, []);
@@ -410,18 +410,35 @@ function LocalShelf({ onOpen }) {
     const l = await createLocal(n.trim());
     onOpen(localCard(l));
   };
+  const off = useOffline();
   return (
-    <section className="section local-shelf">
-      <div className="sec-head"><h2>W telefonie</h2></div>
-      <button className="lib-tile downloads slim" onClick={() => onOpen({ type: 'downloads', id: 'downloads' })}>{Icon.download}<span>Pobrane utwory</span></button>
-      <div className="local-actions">
-        <button className="secondary" onClick={() => { tap(); create(); }}>{Icon.plus} Nowa playlista</button>
-        <button className="secondary" onClick={() => { tap(); setImporting(true); }}>{Icon.download} Import ze Spotify / Apple Music</button>
+    <section className="local-shelf">
+      <div className="lib-grid">
+        {signedIn && (
+          <button className="lt lt-liked" onClick={() => { tap(); onOpen({ type: 'playlist', id: 'LM', title: 'Polubione' }); }}>
+            <span className="lt-ico">♥</span><span className="lt-t">Polubione</span><span className="lt-s">z Twojego konta YouTube</span><i className="lt-shine" />
+          </button>
+        )}
+        <button className="lt lt-dl" onClick={() => { tap(); onOpen({ type: 'downloads', id: 'downloads' }); }}>
+          <span className="lt-ico">{Icon.download}</span><span className="lt-t">Pobrane</span><span className="lt-s">{off.count ? `${off.count} utw. offline` : 'gra bez internetu'}</span>
+        </button>
+        <button className="lt lt-imp" onClick={() => { tap(); setImporting(true); }}>
+          <span className="lt-ico">⇄</span><span className="lt-t">Import</span><span className="lt-s">Spotify · Apple Music</span>
+        </button>
+        <button className="lt lt-new" onClick={() => { tap(); create(); }}>
+          <span className="lt-ico">{Icon.plus}</span><span className="lt-t">Nowa playlista</span><span className="lt-s">w telefonie</span>
+        </button>
+        <div className="lt lt-stat" aria-hidden="true">
+          <span className="lt-num">{lists.length}</span><span className="lt-s">{lists.length === 1 ? 'playlista' : 'playlist'} w telefonie</span>
+        </div>
       </div>
       {lists.length > 0 && (
-        <div className="local-row">
-          {lists.map((l, i) => <Card key={l.id} item={localCard(l)} onOpen={onOpen} i={i} />)}
-        </div>
+        <section className="section">
+          <div className="sec-head"><h2>Playlisty w telefonie</h2></div>
+          <div className="local-row">
+            {lists.map((l, i) => <Card key={l.id} item={localCard(l)} onOpen={onOpen} i={i} />)}
+          </div>
+        </section>
       )}
       {importing && <ImportSheet onClose={() => setImporting(false)} onDone={(l) => { setImporting(false); onOpen(localCard(l)); }} />}
     </section>
@@ -580,11 +597,7 @@ function LibraryView({ onOpen, fresh }) {
   return (
     <div className="view">
       <h1 className="big">Biblioteka</h1>
-      <div className="lib-quick">
-        <div className="lib-tile liked" onClick={() => onOpen({ type: 'playlist', id: 'LM', title: 'Polubione' })}>♥<span>Polubione utwory</span></div>
-        <div className="lib-tile downloads" onClick={() => onOpen({ type: 'downloads', id: 'downloads' })}>{Icon.download}<span>Pobrane</span></div>
-      </div>
-      <LocalShelf onOpen={onOpen} />
+      <LocalShelf onOpen={onOpen} signedIn />
       {lib.loading && (lib.data ? <div className="refreshing" /> : <Loader />)}
       {lib.error && <Err text={lib.error} />}
       {lib.data?.map((sec, i) => <Section key={i} s={sec} onOpen={onOpen} />)}

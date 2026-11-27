@@ -37,6 +37,20 @@ Ryzyka / do sprawdzenia:
   wideo tylko w pełnym playerze + okienko, bez pływania w środku apki
 - część teledysków ma tylko SABR, bez HLS → wtedy zostaje obecny `<video>` (bez auto-PiP)
 
+## 1b. Equalizer (natywny dźwięk)
+
+**Problem:** WebKit na iOS nie oddaje dźwięku z MediaSource do Web Audio (cisza), więc EQ w JS nie zadziała
+na naszym odtwarzaniu. Każde przepuszczenie dźwięku przez Web Audio grozi też ciszą w tle.
+
+**Rozwiązanie:** wtyczka `MTBAudio` (Swift) = AVAudioEngine + AVAudioPlayerNode + AVAudioUnitEQ (10 pasm).
+JS po pobraniu utworu (mamy całe audio: SABR parts / pobrane offline) przekazuje plik natywnie i gra przez
+silnik z EQ. Ekran blokady: MPNowPlayingInfoCenter natywnie (wspólne z `MTBVideo`).
+- polecenia: `load({ file|base64, startAt, meta })`, `play/pause/seek/stop`, `setEq({ gains: [10] })`, `setPreamp`
+- zdarzenia: `time`, `state`, `ended`
+- UI (OTA, może wyjść wcześniej): ekran EQ z 10 suwakami + presety (Bass boost, Rap, Vocal, Rock, Flat, Car),
+  krzywa na żywo; bez natywnego silnika pokazuje „wymaga nowej wersji apki”.
+- zapas: jeśli coś nie gra natywnie, wraca obecne `<audio>`.
+
 ## 2. Drobne natywne rzeczy, skoro i tak jest IPA
 
 - **Usunięcie starego `GoogleLoginPlugin`** (zastąpiony przez `MTBBrowser`, logika w JS) — mniej kodu.
