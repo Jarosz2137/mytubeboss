@@ -1094,3 +1094,8 @@ h1.big { font-size: 36px; margin: 22px 0 16px; background: linear-gradient(90deg
 /* only the visible screen animates: player closed -> its scene/cover/bars freeze; player open -> the app behind it freezes */
 html:not(.np-open) .np *, html:not(.np-open) .np *::before, html:not(.np-open) .np *::after { animation-play-state: paused !important; }
 html.np-open .scroller *, html.np-open .ambient * { animation-play-state: paused !important; }
+
+/* GPU memory: cap the biggest hex/prism layers (largest was ~1.3x of a 115vmax layer) */
+.sc-hex2 .sc-shape { transform: translate(-50%, -50%) scale(calc(.2 + var(--i) * .17)); }
+.sc-prism2 .sc-shape { transform: translate(-50%, -50%) rotate(calc(var(--i) * 20deg)) scale(calc(.25 + var(--i) * .14)); }
+.sc-hex2, .sc-prism2 { will-change: auto; }
