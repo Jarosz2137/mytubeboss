@@ -28,6 +28,7 @@ jobs:
           grep -n "MTBBridgeViewController" ios/App/App/Base.lproj/Main.storyboard
           /usr/libexec/PlistBuddy -c "Print :UIBackgroundModes" ios/App/App/Info.plist
       - run: npx cap sync ios
+      - run: sh scripts/patch-ios-after-sync.sh
       - name: Build
         run: |
           xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Release \
