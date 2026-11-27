@@ -1011,3 +1011,9 @@ h1.big { font-size: 36px; margin: 22px 0 16px; background: linear-gradient(90deg
 /* perf: no live reflection, no per-frame filters on the big cover */
 .np-cover { -webkit-box-reflect: none !important; }
 .np.beat-on .np-strip .np-cover { filter: none !important; }
+
+/* bass flash, cheap version: white overlay whose opacity follows the kick (compositor only) */
+.np-strip .np-cover { overflow: hidden; }
+.np-strip .np-cover::after { content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; opacity: 0;
+  background: radial-gradient(circle at 50% 45%, rgba(255,255,255,.55), rgba(255,255,255,.18) 60%, transparent 85%); mix-blend-mode: overlay; }
+.np.beat-on .np-strip .np-cover::after { opacity: calc(var(--kick, 0) * 1.1 + var(--high, 0) * .25); }
