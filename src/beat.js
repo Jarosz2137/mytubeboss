@@ -114,6 +114,8 @@ function put(st, k, v) { if (Math.abs((lastV[k] ?? -9) - v) < 0.004) return; las
 // ONE clock for every animation: the music is read once per frame here, everything else
 // (visualizer, scene, cover) just gets the result. Full display rate (120 Hz on ProMotion).
 const frameSubs = new Set();
+const SAMPLE_MS = 1000 / 30;
+let prevL = null, nextL = null, readAt = 0, blend = [];
 export function onFrame(f) { frameSubs.add(f); if (!raf) raf = requestAnimationFrame(loop); return () => frameSubs.delete(f); }
 function loop(now = 0) {
   if (!enabled && !frameSubs.size) { raf = 0; return; }
@@ -121,15 +123,26 @@ function loop(now = 0) {
   if (document.hidden) return;
   const fk = Math.min(4, Math.max(0.25, (now - (lastT || now - 16.7)) / 16.7)); // frame-rate independent
   lastT = now;
-  const L = bandLevels();
+  // Music is sampled at 30 Hz (one step ahead, so interpolation adds no lag);
+  // every 120 Hz frame in between just blends the two samples.
+  if (now - readAt >= SAMPLE_MS || !nextL !== !bandLevels()) {
+    prevL = nextL; nextL = bandLevels(SAMPLE_MS / 1000); readAt = now;
+    if (!prevL || !nextL || prevL.length !== nextL.length) prevL = nextL;
+  }
+  let L = null;
+  if (nextL) {
+    const a = Math.min(1, (now - readAt) / SAMPLE_MS);
+    L = blend.length === nextL.length ? blend : (blend = new Array(nextL.length));
+    for (let k = 0; k < nextL.length; k++) L[k] = prevL[k] + (nextL[k] - prevL[k]) * a;
+  }
   frameSubs.forEach((f) => f(L, now));
   if (!target || !enabled) return;
   const t = current();
   const env = t && envs.get(t.id);
   let v = 0;
   if (env && !audioElement.paused) {
-    const i = Math.floor(audioElement.currentTime * 50);
-    v = Math.max(env[i] || 0, (env[i + 1] || 0) * 0.6);
+    const x = audioElement.currentTime * 50, i = Math.floor(x), f = x - i;
+    v = (env[i] || 0) * (1 - f) + (env[i + 1] || 0) * f;
   }
   cur = Math.max(1 + v * 0.11, 1 + (cur - 1) * Math.pow(0.86, fk));
   kick = Math.max(v, kick * Math.pow(0.82, fk)); // fast-decaying flash on every bass hit
@@ -151,11 +164,11 @@ let kick = 0;
 export function setBeatTarget(el) { target = el; }
 
 // Levels (0..1) for every band at the current playback time, or null if not analysed yet.
-export function bandLevels() {
+export function bandLevels(ahead = 0) {
   const t = current();
   const bands = t && spectra.get(t.id);
   if (!bands || audioElement.paused) return null;
-  const i = Math.floor(audioElement.currentTime * 50);
+  const i = Math.floor((audioElement.currentTime + ahead) * 50);
   return bands.map((e) => e[i] || 0);
 }
 
