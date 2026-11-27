@@ -139,11 +139,11 @@ function loop(now = 0) {
   }
   frameSubs.forEach((f) => f(L, now));
   // Adaptive quality: if frames keep coming late, drop the heavy effects (weaker / hot phones).
-  if (fk > 1.6 && !document.hidden) slow++; else if (slow > 0) slow -= 0.25;
+  if (fk > 2.7 && !document.hidden) slow++; // <~22 fps; a steady 30 fps cap from iOS (heat / low power) is fine else if (slow > 0) slow -= 0.25;
   const lite = document.documentElement.classList.contains('lite');
   if (slow > 90 && !lite) { document.documentElement.classList.add('lite'); console.log('[perf] lite mode on'); good = 0; }
   // ...and back to full effects after ~20 s of smooth frames
-  if (lite) { good = fk < 1.3 ? good + now - (prevNow || now) : 0; if (good > 20000) { document.documentElement.classList.remove('lite'); slow = 0; good = 0; console.log('[perf] lite mode off'); } }
+  if (lite) { good = fk < 2.2 ? good + now - (prevNow || now) : 0; if (good > 20000) { document.documentElement.classList.remove('lite'); slow = 0; good = 0; console.log('[perf] lite mode off'); } }
   prevNow = now;
   if (!target || !enabled) return;
   const t = current();
