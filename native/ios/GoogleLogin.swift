@@ -77,8 +77,23 @@ class GoogleLoginViewController: UIViewController, WKNavigationDelegate {
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) { check() }
 
+    private var sentToYouTube = false
+
     private func check() {
-        guard !finished, let host = web.url?.host, host.hasSuffix("youtube.com") else { return }
+        guard !finished, let url = web.url, let host = url.host else { return }
+        if !host.hasSuffix("youtube.com") {
+            // Signed in, but Google parked us on one of its own pages (security checkup,
+            // account page, …) instead of following `continue`: go to YouTube Music ourselves.
+            let onSignInFlow = host == "accounts.google.com" && (url.path.contains("signin") || url.path.contains("ServiceLogin") || url.path.contains("challenge"))
+            guard host.hasSuffix("google.com"), !onSignInFlow, !sentToYouTube else { return }
+            web.configuration.websiteDataStore.httpCookieStore.getAllCookies { cookies in
+                let signedIn = cookies.contains { $0.domain.hasSuffix("google.com") && ($0.name == "SAPISID" || $0.name == "SID") }
+                guard signedIn, !self.sentToYouTube else { return }
+                self.sentToYouTube = true
+                self.web.load(URLRequest(url: URL(string: "https://music.youtube.com/")!))
+            }
+            return
+        }
         web.configuration.websiteDataStore.httpCookieStore.getAllCookies { cookies in
             let yt = cookies.filter { $0.domain.hasSuffix("youtube.com") }
             guard !self.finished, yt.contains(where: { $0.name == "SAPISID" }) else { return }
