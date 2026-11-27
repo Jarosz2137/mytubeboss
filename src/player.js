@@ -164,7 +164,7 @@ async function load(startAt = 0) {
   const token = ++loadToken;
   const mode = state.mode;
   const log = [];
-  set({ loading: true, error: '' });
+  set({ loading: true, error: '', guestLimited: false, loginPrompt: false });
   setTime({ time: startAt, duration: track.duration || 0 });
   updateMediaSession();
   suppressErrors = true;
@@ -209,6 +209,13 @@ async function load(startAt = 0) {
         log.push('SABR ' + sc + ': media ' + (el.error?.code ?? 'timeout'));
       } catch (e) {
         if (token !== loadToken) return;
+        if (e?.guestLimit) {
+          // Not signed in: YouTube only gives guests the first ~70 s. Let that play, then explain.
+          ctl?.end();
+          suppressErrors = false;
+          set({ guestLimited: true });
+          return;
+        }
         if (state.playing) {
           // Stream stopped mid-song (anonymous sessions get cut after ~1 min):
           // continue from the same spot via HLS instead of going silent.
@@ -303,6 +310,7 @@ export function jump(i) {
 }
 
 let userPaused = false;
+export function dismissLoginPrompt() { set({ loginPrompt: false }); }
 export function toggle() {
   userPaused = !el.paused;
   if (!current()) return;
@@ -394,7 +402,13 @@ on('timeupdate', () => {
   setTime({ time: el.currentTime, duration: Number.isFinite(el.duration) && el.duration > 0 ? el.duration : timeState.duration });
   updatePosition();
 });
-on('ended', () => next(true));
+on('ended', () => {
+  if (state.guestLimited && el.currentTime < (current()?.duration || 0) - 5) {
+    set({ playing: false, error: '', loginPrompt: true });
+    return;
+  }
+  next(true);
+});
 on('error', () => {
   if (!el.src || suppressErrors) return;
   set({ loading: false, playing: false, error: 'Stream się wysypał. Spróbuj ponownie albo pomiń.' });

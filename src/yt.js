@@ -754,9 +754,10 @@ export async function sabrAudioChunks(id, { onMeta, onChunk, onProgress } = {}, 
   for (let session = 0; session < 40; session++) {
     let r;
     try { r = await runSession(startMs, snapshot); }
-    catch (e) { throw new Error('SABR: ' + (e?.message || e) + ' po ' + Math.round(bytes / 1024) + ' KB (sps ' + sps + ')'); }
+    catch (e) { if (e?.guestLimit) throw e; throw new Error('SABR: ' + (e?.message || e) + ' po ' + Math.round(bytes / 1024) + ' KB (sps ' + sps + ')'); }
     const total = meta?.durationMs || durationMsTotal;
     if (!r.cut || (total && r.endMs >= total - 1500)) break;
+    if (anonymous) { const e = new Error('GUEST_LIMIT'); e.guestLimit = true; e.partial = { ...meta, parts, bytes }; throw e; }
     if (session > 0 && (r.gained < 20000 || r.endMs <= startMs)) throw new Error('SABR: stanął po ' + Math.round(bytes / 1024) + ' KB (sps ' + sps + ')');
     console.info('[SABR] session', session + 1, 'cut at', r.endMs, 'ms, continuing in a new session', r.snapshot ? '(snapshot ' + r.snapshot.playerTimeMs + ' ms)' : '(no snapshot)');
     startMs = r.endMs;

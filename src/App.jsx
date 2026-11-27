@@ -1,11 +1,12 @@
 import { useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react';
 import * as yt from './yt.js';
+import { Preferences } from '@capacitor/preferences';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
 import { useCoverColors } from './colors.js';
 import { getLogs, clearLogs } from './debuglog.js';
 import {
   usePlayer, current, playList, addNext, jump, toggle, next, prev, seek, setMode, videoElement,
-  cycleRepeat, toggleShuffle, toggleLike, useTime, togglePip, pickOutput,
+  cycleRepeat, toggleShuffle, toggleLike, useTime, togglePip, pickOutput, dismissLoginPrompt,
 } from './player.js';
 import { setBeat, beatOn, onBeat, setBeatTarget, restoreBeat, beatStatus } from './beat.js';
 import { onOta, otaState, applyNow, BUILD, recheck } from './ota.js';
@@ -1092,6 +1093,67 @@ function VersionLine() {
   );
 }
 
+// First launch: sign in with Google, or continue as a guest.
+function Welcome() {
+  const [show, setShow] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  useEffect(() => {
+    (async () => {
+      const { value } = await Preferences.get({ key: 'welcome_seen' });
+      if (value) return;
+      if (await yt.isSignedIn().catch(() => false)) return;
+      setShow(true);
+    })();
+  }, []);
+  if (!show) return null;
+  const close = () => { Preferences.set({ key: 'welcome_seen', value: '1' }); setShow(false); };
+  const login = async () => {
+    setErr(''); setBusy(true);
+    try { await googleSignIn(); close(); } catch (e) { if (!/cancel/i.test(e?.message || '')) setErr(e?.message || String(e)); }
+    setBusy(false);
+  };
+  return (
+    <div className="welcome">
+      <div className="welcome-inner">
+        <Wordmark size="xl" />
+        <p className="welcome-lead">Twoja muzyka z YouTube, bez reklam, w tle i z ekranem blokady.</p>
+        {canGoogleLogin() ? (
+          <button className="primary google-btn" disabled={busy} onClick={login}>{busy ? 'Łączę…' : 'Zaloguj przez Google'}</button>
+        ) : (
+          <p className="hint">Zalogować się możesz w zakładce Biblioteka.</p>
+        )}
+        <p className="hint">Z kontem utwory grają w całości, a apka pokazuje Twoje playlisty i polubione. Sesja zostaje tylko w tym telefonie.</p>
+        {err && <Err text={err} />}
+        <button className="ghost" onClick={close}>Kontynuuj bez logowania</button>
+        <p className="hint small">Bez logowania YouTube daje tylko ok. 70 sekund z każdego utworu.</p>
+      </div>
+    </div>
+  );
+}
+
+// Guest hit YouTube's ~70 s limit
+function LoginPrompt() {
+  const p = usePlayer();
+  const [busy, setBusy] = useState(false);
+  if (!p.loginPrompt) return null;
+  return (
+    <div className="sheet-backdrop" onClick={dismissLoginPrompt}>
+      <div className="sheet" onClick={(e) => e.stopPropagation()}>
+        <div className="np-grabber" />
+        <h3>Zaloguj się, żeby słuchać całości</h3>
+        <p className="hint">Bez logowania YouTube daje tylko ok. 70 sekund z każdego utworu. Z kontem Google grają w całości.</p>
+        <div className="sheet-actions">
+          <button className="ghost" onClick={() => { dismissLoginPrompt(); next(); }}>Następny utwór</button>
+          {canGoogleLogin()
+            ? <button className="primary" disabled={busy} onClick={async () => { setBusy(true); try { await googleSignIn(); dismissLoginPrompt(); toggle(); } catch { /* cancelled */ } setBusy(false); }}>{busy ? 'Łączę…' : 'Zaloguj przez Google'}</button>
+            : <button className="primary" onClick={dismissLoginPrompt}>OK</button>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function OtaPill() {
   const [o, setO] = useState(otaState);
   useEffect(() => onOta(setO), []);
@@ -1189,6 +1251,8 @@ export default function App() {
         <button className={tab === 'library' ? 'on' : ''} onClick={() => switchTab('library')}>{Icon.lib}<span>Biblioteka</span></button>
       </nav>
       <OtaPill />
+      <Welcome />
+      <LoginPrompt />
       <OfflineBar />
       <AddSheet />
       <VideoPop show={!npOpen} onOpen={() => setNpOpen(true)} />
