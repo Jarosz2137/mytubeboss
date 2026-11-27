@@ -212,11 +212,19 @@ async function load(startAt = 0) {
         if (state.playing) {
           // Stream stopped mid-song (anonymous sessions get cut after ~1 min):
           // continue from the same spot via HLS instead of going silent.
+          // Keep what's already buffered playing; only switch if an HLS stream exists.
           ctl?.end();
-          startAt = el.currentTime || startAt;
-          console.warn('[load] SABR cut at', startAt.toFixed(1), 's, switching to HLS');
-          log.push('SABR przerwany');
-          break;
+          const pos = el.currentTime || startAt;
+          console.warn('[load] SABR cut at', pos.toFixed(1), 's, trying HLS without stopping');
+          try {
+            let hls = await hlsUrl(track.id).catch(() => null);
+            if (!hls) { const cid = await counterpartId(track.id).catch(() => null); if (cid) hls = await hlsUrl(cid).catch(() => null); }
+            if (token !== loadToken) return;
+            if (hls && await tryPlay(hls, el.currentTime || pos, token)) { done(); return; }
+          } catch { /* keep buffered audio */ }
+          suppressErrors = false;
+          set({ error: 'Bez logowania YouTube dał tylko część utworu' });
+          return;
         }
         log.push(String(e?.message || e).slice(0, 120));
       }

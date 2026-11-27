@@ -667,7 +667,7 @@ export async function sabrAudioChunks(id, { onMeta, onChunk, onProgress } = {}, 
   let sps = '';
   const durationMsTotal = Number(sd.adaptive_formats?.find((f) => f.mime_type?.startsWith('audio/mp4'))?.approx_duration_ms) || 0;
 
-  const runSession = (startTimeMs) => new Promise((resolve, reject) => {
+  const runSession = (startTimeMs, snapshot) => new Promise((resolve, reject) => {
     const sabr = new SabrStream({
       videoId: id,
       fetchFunction: fetchFn,
@@ -694,7 +694,7 @@ export async function sabrAudioChunks(id, { onMeta, onChunk, onProgress } = {}, 
       enabledTrackTypes: EnabledTrackTypes.AUDIO_ONLY,
       audioPreferences: { container: 'mp4', preferredAudioCodec: 'aac', quality: 'AUDIO_QUALITY_MEDIUM' },
       isPostLiveDvr: false,
-      startTimeMs,
+      ...(snapshot ? { snapshot } : { startTimeMs }),
     });
     if (!meta) {
       const fmt = selectedFormats?.audioFormat;
@@ -707,13 +707,19 @@ export async function sabrAudioChunks(id, { onMeta, onChunk, onProgress } = {}, 
     const reader = audioStream.getReader();
     let lastChunk = Date.now();
     let cut = false;
-    const watchdog = setInterval(() => {
+    let snap = null;
+    const startBytes = bytes;
+    const watchdog = setInterval(async () => {
       const idle = Date.now() - lastChunk;
-      // attestation wall: stop early and let the caller open a new session
+      // attestation wall: stop early and let the caller open a new session that resumes
+      // from a snapshot of what we already have (so it continues instead of restarting at 0)
       if ((pending && idle > 5000) || idle > 25000) {
         cut = true;
         clearInterval(watchdog);
-        sabr.abort().catch(() => {});
+        try {
+          snap = await Promise.race([sabr.abort({ snapshot: true }), new Promise((r) => setTimeout(() => r(null), 3000))]);
+        } catch { snap = null; }
+        if (!snap) sabr.abort().catch(() => {});
         reader.cancel(new Error('stall')).catch(() => {});
       }
     }, 1000);
@@ -731,21 +737,23 @@ export async function sabrAudioChunks(id, { onMeta, onChunk, onProgress } = {}, 
         }
         clearInterval(watchdog);
         if (sabrErr && !cut) throw sabrErr;
-        resolve({ cut, endMs: bufferedMs });
+        resolve({ cut, endMs: bufferedMs, snapshot: snap, gained: bytes - startBytes });
       } catch (e) { clearInterval(watchdog); reject(e); }
     })();
   });
 
   let startMs = 0;
+  let snapshot = null;
   for (let session = 0; session < 40; session++) {
     let r;
-    try { r = await runSession(startMs); }
+    try { r = await runSession(startMs, snapshot); }
     catch (e) { throw new Error('SABR: ' + (e?.message || e) + ' po ' + Math.round(bytes / 1024) + ' KB (sps ' + sps + ')'); }
     const total = meta?.durationMs || durationMsTotal;
     if (!r.cut || (total && r.endMs >= total - 1500)) break;
-    if (r.endMs <= startMs) throw new Error('SABR: stanął po ' + Math.round(bytes / 1024) + ' KB (sps ' + sps + ')');
-    console.info('[SABR] session', session + 1, 'cut at', r.endMs, 'ms, continuing in a new session');
+    if (session > 0 && r.gained < 20000) throw new Error('SABR: stanął po ' + Math.round(bytes / 1024) + ' KB (sps ' + sps + ')');
+    console.info('[SABR] session', session + 1, 'cut at', r.endMs, 'ms, continuing in a new session', r.snapshot ? '(snapshot ' + r.snapshot.playerTimeMs + ' ms)' : '(no snapshot)');
     startMs = r.endMs;
+    snapshot = r.snapshot;
     const next = await loadInfo();
     cfg = { serverAbrStreamingUrl: next.serverAbrStreamingUrl, videoPlaybackUstreamerConfig: next.videoPlaybackUstreamerConfig };
   }
