@@ -38,6 +38,9 @@ Kolejność dowolna, zapisane po sesji 26.11.2026.
 ## 9. Odtwarzanie bez logowania
 - Strumień urywał się po ~1 min (token niezgodny z ciasteczkiem visitora iOS). Poprawka: wiązanie z VISITOR_INFO1_LIVE z ciasteczek + przejście na HLS przy urwaniu. Do potwierdzenia na telefonie.
 
+## 10. Następny IPA (ok. 4.12)
+- Natywny odtwarzacz teledysków z automatycznym okienkiem przy wyjściu z apki — plan: docs/IPA-NEXT.md
+
 ## Znane / odłożone
 - Przeciąganie odtwarzacza w górę z mini-paska nie działa na telefonie (w emulatorze działa). Stuknięcie otwiera — na razie zostaje.
 - Podpis darmowym Apple ID: co 7 dni Mac → iloader → Importuj IPA. SideStore nie loguje się (błąd 401) — do sprawdzenia nowszej wersji.
