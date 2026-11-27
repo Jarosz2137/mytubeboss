@@ -115,7 +115,7 @@ function put(st, k, v) { if (Math.abs((lastV[k] ?? -9) - v) < 0.004) return; las
 // (visualizer, scene, cover) just gets the result. Full display rate (120 Hz on ProMotion).
 const frameSubs = new Set();
 const SAMPLE_MS = 1000 / 30;
-let prevL = null, nextL = null, readAt = 0, blend = [], lastKey = '';
+let prevL = null, nextL = null, readAt = 0, blend = [], lastKey = '', slow = 0;
 export function onFrame(f) { frameSubs.add(f); if (!raf) raf = requestAnimationFrame(loop); return () => frameSubs.delete(f); }
 function loop(now = 0) {
   if (!enabled && !frameSubs.size) { raf = 0; return; }
@@ -138,6 +138,11 @@ function loop(now = 0) {
     for (let k = 0; k < nextL.length; k++) L[k] = prevL[k] + (nextL[k] - prevL[k]) * a;
   }
   frameSubs.forEach((f) => f(L, now));
+  // Adaptive quality: if frames keep coming late, drop the heavy effects (weaker / hot phones).
+  if (fk > 1.6 && !document.hidden) slow++; else if (slow > 0) slow -= 0.25;
+  if (slow > 90 && !document.documentElement.classList.contains('lite')) {
+    document.documentElement.classList.add('lite'); console.log('[perf] lite mode on');
+  }
   if (!target || !enabled) return;
   const t = current();
   const env = t && envs.get(t.id);

@@ -1017,3 +1017,9 @@ h1.big { font-size: 36px; margin: 22px 0 16px; background: linear-gradient(90deg
 .np-strip .np-cover::after { content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; opacity: 0;
   background: radial-gradient(circle at 50% 45%, rgba(255,255,255,.32), rgba(255,255,255,.1) 60%, transparent 85%); }
 .np.beat-on .np-strip .np-cover::after { opacity: calc(var(--kick, 0) * 1.1 + var(--high, 0) * .25); }
+
+/* lite mode: auto-enabled when the phone can't keep up */
+.lite .np-cover { -webkit-box-reflect: none !important; }
+.lite .np-strip .np-cover::after { display: none; }
+.lite .np-side .cover { animation: none !important; }
+.lite * { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
