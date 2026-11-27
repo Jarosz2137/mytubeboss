@@ -632,7 +632,10 @@ export async function sabrAudioBlobUrl(id, onProgress, client = 'WEB') {
 
 // Streams the audio track; calls onMeta once (full mime + duration) and onChunk per piece.
 export async function sabrAudioChunks(id, { onMeta, onChunk, onProgress } = {}, client = 'WEB') {
-  const { yt, minter, po_token, fetchFn, binding } = await getPlayYT();
+  const { yt, minter, po_token, fetchFn, binding, visitorData } = await getPlayYT();
+  // GVS (googlevideo) PO tokens for web are bound to the video ID (yt-dlp PO Token Guide).
+  // Logged in we keep the account binding that already works; anonymous uses the video ID.
+  const gvsBinding = binding && binding !== visitorData ? binding : id;
   const loadInfo = async () => {
     const info = await yt.getBasicInfo(id, await opts(minter, id, { client }));
     const url = info.streaming_data?.server_abr_streaming_url;
@@ -674,7 +677,7 @@ export async function sabrAudioChunks(id, { onMeta, onChunk, onProgress } = {}, 
       formats,
       clientInfo: { clientName: SABR_CLIENTS[client].id, clientVersion: SABR_CLIENTS[client].version || c.clientVersion, osName: c.osName, osVersion: c.osVersion },
       callbacks: {
-        onMintPoToken: minter ? async () => minter.mint(binding) : undefined,
+        onMintPoToken: minter ? async () => { console.info('[SABR] minting PO bound to', gvsBinding === id ? 'video ' + id : 'account'); return minter.mint(gvsBinding); } : undefined,
         onReloadPlayerResponse: async () => {
           const r = await loadInfo();
           return { serverAbrStreamingUrl: r.serverAbrStreamingUrl, videoPlaybackUstreamerConfig: r.videoPlaybackUstreamerConfig };
