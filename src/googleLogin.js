@@ -6,7 +6,7 @@ import { signInWithCookie } from './yt.js';
 const GoogleLogin = registerPlugin('GoogleLogin');
 
 // Show the button on every native build; if the native part is missing, the tap reports it.
-export const canGoogleLogin = () => Capacitor.isNativePlatform();
+export const canGoogleLogin = () => Capacitor.getPlatform() === 'ios'; // Android/desktop: coming with their ports
 export const googlePluginPresent = () => Capacitor.isPluginAvailable('GoogleLogin');
 
 export async function googleSignIn() {
