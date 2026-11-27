@@ -7,7 +7,9 @@ import { Preferences } from '@capacitor/preferences';
 import { audioElement, current } from './player.js';
 
 const RATE = 8000, FRAME = 160; // 20 ms frames
-const envs = new Map(); // track id -> Float32Array (0..1)
+const envs = new Map(); // track id -> Float32Array (0..1) bass kick envelope (BEAT)
+const spectra = new Map(); // track id -> Float32Array[] one level envelope per band (visualizer)
+export const BAND_HZ = [55, 110, 220, 440, 880, 1600, 2800, 3700];
 const busy = new Set();
 let raf = 0, target = null, cur = 1, enabled = false;
 const subs = new Set();
@@ -23,14 +25,39 @@ async function analyse(id, parts, mime) {
     const OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
     const bytes = await new Blob(parts, { type: (mime || '').split(';')[0] }).arrayBuffer();
     const decoded = await new OAC(1, RATE, RATE).decodeAudioData(bytes);
-    // low-pass the whole song to keep the kick/bass only
-    const off = new OAC(1, decoded.length, RATE);
+    // one offline render: kick low-pass on channel 0, band-passes for the visualizer on 1..N
+    const B = BAND_HZ.length;
+    const off = new OAC(B + 1, decoded.length, RATE);
     const src = off.createBufferSource();
     src.buffer = decoded;
+    const merger = off.createChannelMerger(B + 1);
     const lp = off.createBiquadFilter();
     lp.type = 'lowpass'; lp.frequency.value = 150;
-    src.connect(lp); lp.connect(off.destination); src.start();
-    const data = (await off.startRendering()).getChannelData(0);
+    src.connect(lp); lp.connect(merger, 0, 0);
+    BAND_HZ.forEach((hz, i) => {
+      const bp = off.createBiquadFilter();
+      bp.type = hz < 100 ? 'lowpass' : hz > 3500 ? 'highpass' : 'bandpass';
+      bp.frequency.value = hz; bp.Q.value = 1.1;
+      src.connect(bp); bp.connect(merger, 0, i + 1);
+    });
+    merger.connect(off.destination); src.start();
+    const rendered = await off.startRendering();
+    const data = rendered.getChannelData(0);
+    const rms = (ch) => {
+      const n = Math.floor(ch.length / FRAME), out = new Float32Array(n);
+      for (let i = 0; i < n; i++) { let s2 = 0; for (let j = i * FRAME, e = j + FRAME; j < e; j++) s2 += ch[j] * ch[j]; out[i] = Math.sqrt(s2 / FRAME); }
+      return out;
+    };
+    const bands = [];
+    for (let b = 0; b < B; b++) {
+      const e = rms(rendered.getChannelData(b + 1));
+      const sorted = Array.from(e).sort((x, y) => x - y);
+      const p = sorted[Math.floor(sorted.length * 0.985)] || 1e-6;
+      for (let i = 0; i < e.length; i++) e[i] = Math.min(1, Math.pow(e[i] / p, 0.8));
+      bands.push(e);
+    }
+    spectra.set(id, bands);
+    while (spectra.size > 6) spectra.delete(spectra.keys().next().value);
     const n = Math.floor(data.length / FRAME);
     const energy = new Float32Array(n);
     for (let i = 0; i < n; i++) {
@@ -61,7 +88,7 @@ window.addEventListener('mtb-audio', (e) => {
   const { id, parts, mime } = e.detail || {};
   pending.set(id, { parts, mime });
   while (pending.size > 4) pending.delete(pending.keys().next().value);
-  if (enabled) analyse(id, parts, mime);
+  analyse(id, parts, mime);
 });
 
 function loop() {
@@ -79,6 +106,15 @@ function loop() {
 }
 
 export function setBeatTarget(el) { target = el; }
+
+// Levels (0..1) for every band at the current playback time, or null if not analysed yet.
+export function bandLevels() {
+  const t = current();
+  const bands = t && spectra.get(t.id);
+  if (!bands || audioElement.paused) return null;
+  const i = Math.floor(audioElement.currentTime * 50);
+  return bands.map((e) => e[i] || 0);
+}
 
 export async function setBeat(on) {
   enabled = on;

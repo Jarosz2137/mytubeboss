@@ -695,3 +695,11 @@ html, body { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 .version-wrap { display: flex; flex-direction: column; align-items: center; gap: 2px; margin-bottom: 30px; }
 .version-wrap .version-line { margin: 0; }
 .version-line.logs { text-decoration: underline; padding: 8px 12px; }
+
+/* ===== real spectrum visualizer (car-stereo style) ===== */
+.viz.real { gap: 3px; height: 30px; }
+.viz.real span { position: relative; flex: 1; height: 100%; display: flex; align-items: flex-end; }
+.viz.real i { display: block; width: 100%; height: 100%; animation: none !important; transform-origin: bottom; transform: scaleY(.06);
+  border-radius: 2px; background: linear-gradient(to top, color-mix(in srgb, var(--c1) 85%, white) 0%, var(--c1) 55%, #ffe08a 100%); will-change: transform; }
+.viz.real b { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; border-radius: 1px; background: #fff; opacity: .85; will-change: transform; }
+.np:not(.is-playing) .viz.real i { transform: scaleY(.06); }

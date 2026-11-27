@@ -8,7 +8,7 @@ import {
   usePlayer, current, playList, addNext, jump, toggle, next, prev, seek, setMode, videoElement,
   cycleRepeat, toggleShuffle, toggleLike, useTime, togglePip, pickOutput, dismissLoginPrompt, pipIfVideo,
 } from './player.js';
-import { setBeat, beatOn, onBeat, setBeatTarget, restoreBeat, beatStatus } from './beat.js';
+import { setBeat, beatOn, onBeat, setBeatTarget, restoreBeat, beatStatus, bandLevels } from './beat.js';
 import { onOta, otaState, applyNow, BUILD, recheck } from './ota.js';
 import { canGoogleLogin, googleSignIn } from './googleLogin.js';
 import { loadLocal, onLocal, localLists, getLocal, createLocal, addToLocal, removeFromLocal, renameLocal, deleteLocal, localCard, isLocalId, onAddSheet, openAddSheet } from './local.js';
@@ -781,11 +781,39 @@ function MiniPlayer({ hidden, onDrag, onDragEnd }) {
   );
 }
 
+// Car-stereo style spectrum: real band levels from the analysed song, with falling peak caps.
 function Visualizer() {
-  const bars = useRef([...Array(28)].map(() => ({ d: 0.45 + Math.random() * 0.7, o: -Math.random() }))).current;
+  const N = 28;
+  const wrap = useRef(null);
+  useEffect(() => {
+    const bars = Array.from(wrap.current?.querySelectorAll('i') || []);
+    const caps = Array.from(wrap.current?.querySelectorAll('b') || []);
+    const level = new Float32Array(N), peak = new Float32Array(N), hold = new Float32Array(N);
+    let raf = 0;
+    const loop = () => {
+      raf = requestAnimationFrame(loop);
+      if (document.hidden) return;
+      const L = bandLevels();
+      for (let k = 0; k < N; k++) {
+        let target = 0.06;
+        if (L) {
+          const pos = (k / (N - 1)) * (L.length - 1), a = Math.floor(pos), f = pos - a;
+          target = Math.max(0.06, (L[a] * (1 - f) + (L[a + 1] ?? L[a]) * f) * (0.9 + 0.1 * Math.sin(k * 1.7)));
+        }
+        level[k] = target > level[k] ? target : level[k] * 0.86 + target * 0.14; // fast attack, slow release
+        if (level[k] >= peak[k]) { peak[k] = level[k]; hold[k] = 18; }
+        else if (hold[k] > 0) hold[k]--;
+        else peak[k] = Math.max(level[k], peak[k] - 0.012);
+        bars[k].style.transform = `scaleY(${level[k].toFixed(3)})`;
+        caps[k].style.transform = `translateY(${(-peak[k] * 26).toFixed(1)}px)`;
+      }
+    };
+    loop();
+    return () => cancelAnimationFrame(raf);
+  }, []);
   return (
-    <div className="viz" aria-hidden="true">
-      {bars.map((b, i) => <i key={i} style={{ animationDuration: b.d + 's', animationDelay: b.o + 's' }} />)}
+    <div className="viz real" ref={wrap} aria-hidden="true">
+      {[...Array(N)].map((_, i) => <span key={i}><i /><b /></span>)}
     </div>
   );
 }
