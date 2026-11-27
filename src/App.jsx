@@ -978,15 +978,23 @@ function NpTools() {
   const drop = t && dropTime(t.id);
   const rate = p.rate || 1;
   const label = rate === 1 ? '1×' : rate < 1 ? `${rate}× slowed` : `${rate}× sped up`;
+  const [open, setOpen] = useState(false);
   const nextRate = () => { tap(); const i = RATES.indexOf(rate); setRate(RATES[(i + 1) % RATES.length]); };
   if (p.mode === 'video') return null;
   return (
-    <div className="np-tools">
-      <button className={`tool-chip ${rate !== 1 ? 'lit' : ''}`} onClick={nextRate} onContextMenu={(e) => { e.preventDefault(); setRate(1); }}>{label}</button>
-      <SleepChip />
-      <button className="tool-chip" onClick={() => { tap(); window.dispatchEvent(new Event('mtb-car')); }}>🚗 Auto</button>
-      {drop ? <button className="tool-chip drop" onClick={() => { tap(ImpactStyle.Medium); seek(Math.max(0, drop - 1.5)); }}>⚡ Skocz do dropu · {fmt(drop)}</button>
+    <div className={`np-tools ${open ? 'open' : ''}`}>
+      <button className={`tool-chip more ${rate !== 1 || p.sleep ? 'lit' : ''}`} onClick={() => { tap(); setOpen(!open); }} aria-expanded={open}>
+        Opcje <span className="chev">▾</span>
+      </button>
+      {drop ? <button className="tool-chip drop" onClick={() => { tap(ImpactStyle.Medium); seek(Math.max(0, drop - 1.5)); }}>⚡ Drop · {fmt(drop)}</button>
         : <span className="tool-chip ghosty">⚡ szukam dropu…</span>}
+      {open && (
+        <div className="np-tools-more">
+          <button className={`tool-chip ${rate !== 1 ? 'lit' : ''}`} onClick={nextRate} onContextMenu={(e) => { e.preventDefault(); setRate(1); }}>{label}</button>
+          <SleepChip />
+          <button className="tool-chip" onClick={() => { tap(); window.dispatchEvent(new Event('mtb-car')); }}>🚗 Auto</button>
+        </div>
+      )}
     </div>
   );
 }
