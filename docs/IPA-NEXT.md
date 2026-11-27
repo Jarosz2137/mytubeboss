@@ -75,3 +75,10 @@ silnik z EQ. Ekran blokady: MPNowPlayingInfoCenter natywnie (wspólne z `MTBVide
 3. Build w Actions, sprawdzenie, że się kompiluje; OTA z integracją może wyjść wcześniej (bez IPA
    po prostu jej nie użyje).
 4. Michał wgrywa IPA przy odnowieniu podpisu.
+
+## MTBPerf (native diagnostics)
+- Every 10 s log real app CPU % (task_threads / thread_basic_info), RAM footprint (task_vm_info.phys_footprint),
+  `ProcessInfo.thermalState` and `isLowPowerModeEnabled` into the JS log as `[perf]`.
+- Log thermalState changes immediately, with the JS "during" tags from lifecycle.js.
+- WebContent process termination (`webViewWebContentProcessDidTerminate`) -> log it before reload, so crashes show up in "Kopiuj logi".
+- Also: enable 120 Hz for the web view (CADisableMinimumFrameDurationOnPhone in Info.plist).
