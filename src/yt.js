@@ -496,6 +496,30 @@ async function fetchDataSyncId(fetchFn, cookie) {
   } catch { return null; }
 }
 
+// visitorData = base64url(protobuf { 1: id (string), 5: timestamp (int32) })
+function encodeVisitorData(id, ts) {
+  const idb = new TextEncoder().encode(id);
+  const out = [0x0a, idb.length, ...idb, 0x28];
+  let v = ts >>> 0;
+  while (v > 0x7f) { out.push((v & 0x7f) | 0x80); v >>>= 7; }
+  out.push(v);
+  let bin = ''; for (const b of out) bin += String.fromCharCode(b);
+  return encodeURIComponent(btoa(bin).replace(/\+/g, '-').replace(/\//g, '_'));
+}
+function decodeVisitorId(vd) {
+  try {
+    const bin = atob(decodeURIComponent(vd).replace(/-/g, '+').replace(/_/g, '/'));
+    if (bin.charCodeAt(0) !== 0x0a) return '';
+    return bin.slice(2, 2 + bin.charCodeAt(1));
+  } catch { return ''; }
+}
+async function jarVisitorId() {
+  try {
+    const c = await CapacitorCookies.getCookies({ url: 'https://www.youtube.com' });
+    return c?.VISITOR_INFO1_LIVE || '';
+  } catch { return ''; }
+}
+
 function getPlayYT() {
   if (!playPromise) {
     playPromise = (async () => {
@@ -506,7 +530,16 @@ function getPlayYT() {
       // Real visitorData from YouTube (not generated locally): iOS keeps YouTube's visitor
       // cookie in its jar, so the token must be bound to the identity those cookies carry.
       const first = await Innertube.create({ ...base, generate_session_locally: false });
-      const visitorData = first.session.context.client.visitorData;
+      let visitorData = first.session.context.client.visitorData;
+      if (!cookie && isNative) {
+        // Anonymous: iOS sends its own VISITOR_INFO1_LIVE cookie with every request, so YouTube
+        // sees that visitor. Bind the session and the PO token to the same visitor, or the
+        // stream gets cut after ~1 minute ("attestation pending").
+        const jarId = await jarVisitorId();
+        const ctxId = decodeVisitorId(visitorData);
+        console.info('[PO] visitor ids: cookie', jarId, 'context', ctxId);
+        if (jarId && jarId !== ctxId) visitorData = encodeVisitorData(jarId, Math.floor(Date.now() / 1000));
+      }
       let binding = visitorData;
       if (cookie) {
         const ds = await fetchDataSyncId(fetchFn, cookie);
