@@ -21,6 +21,7 @@ jobs:
         run: VITE_BUILD=$(date -u +%Y%m%d%H%M%S) npm run build
         env:
           VITE_OTA_REPO: ${{ vars.OTA_REPO || 'Jarosz2137/mytubeboss-ota' }}
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq imagemagick
       - run: npx cap add android
       - run: sh scripts/patch-android.sh
       - run: npx cap sync android
