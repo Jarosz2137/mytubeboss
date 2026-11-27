@@ -111,11 +111,19 @@ window.addEventListener('mtb-audio', (e) => {
 let lastT = 0;
 const lastV = {};
 function put(st, k, v) { if (Math.abs((lastV[k] ?? -9) - v) < 0.004) return; lastV[k] = v; st.setProperty(k, v.toFixed(3)); }
+// ONE clock for every animation: the music is read once per frame here, everything else
+// (visualizer, scene, cover) just gets the result. Full display rate (120 Hz on ProMotion).
+const frameSubs = new Set();
+export function onFrame(f) { frameSubs.add(f); if (!raf) raf = requestAnimationFrame(loop); return () => frameSubs.delete(f); }
 function loop(now = 0) {
+  if (!enabled && !frameSubs.size) { raf = 0; return; }
   raf = requestAnimationFrame(loop);
-  if (!target || document.hidden) return;
-  if (now - lastT < 32) return; // ~30 fps is plenty, 120 Hz ProMotion was cooking the phone
+  if (document.hidden) return;
+  const fk = Math.min(4, Math.max(0.25, (now - (lastT || now - 16.7)) / 16.7)); // frame-rate independent
   lastT = now;
+  const L = bandLevels();
+  frameSubs.forEach((f) => f(L, now));
+  if (!target || !enabled) return;
   const t = current();
   const env = t && envs.get(t.id);
   let v = 0;
@@ -123,17 +131,16 @@ function loop(now = 0) {
     const i = Math.floor(audioElement.currentTime * 50);
     v = Math.max(env[i] || 0, (env[i + 1] || 0) * 0.6);
   }
-  cur = Math.max(1 + v * 0.11, cur * 0.86 + 0.14);
-  kick = Math.max(v, kick * 0.82); // fast-decaying flash on every bass hit
+  cur = Math.max(1 + v * 0.11, 1 + (cur - 1) * Math.pow(0.86, fk));
+  kick = Math.max(v, kick * Math.pow(0.82, fk)); // fast-decaying flash on every bass hit
   // Whole scene: bass / mid / high energy, fast attack and slow release so quiet parts calm down.
-  const L = bandLevels();
   let bass = 0, mid = 0, high = 0;
   if (L) {
     bass = Math.max((L[0] + L[1]) / 2, v);
     mid = (L[2] + L[3] + L[4]) / 3;
     high = (L[5] + L[6] + L[7]) / 3;
   }
-  const ease = (prev, t) => prev + (t - prev) * (t > prev ? 0.6 : 0.08);
+  const ease = (prev, t) => prev + (t - prev) * (1 - Math.pow(1 - (t > prev ? 0.6 : 0.08), fk));
   sm.bass = ease(sm.bass, bass); sm.mid = ease(sm.mid, mid); sm.high = ease(sm.high, high);
   const st = target.style;
   put(st, '--pulse', cur); put(st, '--bass', sm.bass); put(st, '--mid', sm.mid); put(st, '--high', sm.high); put(st, '--kick', kick);
@@ -159,9 +166,8 @@ export async function setBeat(on) {
     const t = current();
     const p = t && pending.get(t.id);
     if (p) analyse(t.id, p.parts, p.mime); else if (t && !envs.has(t.id)) status('złapie od następnego utworu');
-    if (!raf) loop();
+    if (!raf) raf = requestAnimationFrame(loop);
   } else {
-    cancelAnimationFrame(raf); raf = 0;
     target?.style.setProperty('--pulse', '1');
     ['--bass', '--mid', '--high', '--kick'].forEach((k) => target?.style.setProperty(k, '0'));
     for (const k in lastV) delete lastV[k];

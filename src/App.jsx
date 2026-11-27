@@ -8,7 +8,7 @@ import {
   usePlayer, current, playList, addNext, jump, toggle, next, prev, seek, setMode, videoElement,
   cycleRepeat, toggleShuffle, toggleLike, useTime, togglePip, pickOutput, dismissLoginPrompt, pipIfVideo, RATES, setRate, setSleep,
 } from './player.js';
-import { setBeat, beatOn, onBeat, setBeatTarget, restoreBeat, beatStatus, bandLevels, dropTime, onDrop } from './beat.js';
+import { setBeat, beatOn, onBeat, setBeatTarget, restoreBeat, beatStatus, bandLevels, onFrame, dropTime, onDrop } from './beat.js';
 import { onOta, otaState, applyNow, BUILD, recheck } from './ota.js';
 import { canGoogleLogin, googleSignIn } from './googleLogin.js';
 import { loadLocal, onLocal, localLists, getLocal, createLocal, addToLocal, removeFromLocal, renameLocal, deleteLocal, localCard, isLocalId, onAddSheet, openAddSheet } from './local.js';
@@ -897,12 +897,8 @@ function Visualizer() {
   useEffect(() => {
     const bars = Array.from(wrap.current?.querySelectorAll('i') || []);
     const level = new Float32Array(N);
-    let raf = 0, last = 0, t0 = performance.now();
-    const loop = (now) => {
-      raf = requestAnimationFrame(loop);
-      if (document.hidden || now - last < 32) return;
-      last = now;
-      const L = bandLevels();
+    const t0 = performance.now();
+    const off = onFrame((L, now) => {
       const mid = (N - 1) / 2;
       for (let k = 0; k < N; k++) {
         const d = Math.abs(k - mid) / mid; // 0 centre .. 1 edge
@@ -912,13 +908,12 @@ function Visualizer() {
           const v = L[a] * (1 - f) + (L[a + 1] ?? L[a]) * f;
           target = Math.max(0.08, v * (1 - d * 0.35));
         }
-        level[k] += (target - level[k]) * (target > level[k] ? 0.45 : 0.12);
+        level[k] += (target - level[k]) * (target > level[k] ? 0.3 : 0.07);
         const v = level[k].toFixed(2);
         if (bars[k]._v !== v) { bars[k]._v = v; bars[k].style.transform = `scaleY(${v})`; }
       }
-    };
-    raf = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(raf);
+    });
+    return off;
   }, []);
   return (
     <div className="viz wave" ref={wrap} aria-hidden="true">
