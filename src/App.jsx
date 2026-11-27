@@ -1219,7 +1219,6 @@ function NowPlaying({ open, onClose, onOpen, sheetRef }) {
         <div className="np-grabber" />
         <div className="np-brand">
           <Wordmark size="xs" />
-          <span className="boss-badge">👑 BOSS MODE · 0 reklam</span>
           <button className={`beat-btn ${beat ? 'on' : ''}`} onClick={() => { tap(); setBeat(!beat); }} aria-label="Puls do beatu">BEAT</button>
         </div>
         {beat && beatStatus && <div className="beat-note">BEAT: {beatStatus}</div>}
