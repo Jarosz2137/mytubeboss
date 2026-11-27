@@ -151,6 +151,12 @@ function tryPlay(url, startAt, token) {
   });
 }
 
+// Lets other modules (BEAT analysis, offline downloads) reuse a track's fully downloaded audio.
+function announce(id, r) {
+  if (!r?.parts?.length) return;
+  window.dispatchEvent(new CustomEvent('mtb-audio', { detail: { id, parts: r.parts, mime: r.mime, durationMs: r.durationMs } }));
+}
+
 async function load(startAt = 0) {
   const track = current();
   if (!track) return;
@@ -168,6 +174,7 @@ async function load(startAt = 0) {
     const pre = ready.get(track.id);
     if (pre) {
       ready.delete(track.id);
+      announce(track.id, pre);
       if (pre.durationMs) setTime({ duration: pre.durationMs / 1000 });
       const ctl = makeMse(pre, startAt, token);
       if (ctl) { pre.parts.forEach((c) => ctl.push(c)); ctl.end(); done(); return; }
@@ -187,6 +194,7 @@ async function load(startAt = 0) {
           onProgress: (b) => { if (token === loadToken && !state.playing) set({ error: 'Ładuję utwór… ' + (b / 1048576).toFixed(1) + ' MB' }); },
         }, sc);
         if (token !== loadToken) return;
+        announce(track.id, r);
         if (ctl) { ctl.end(); done(); return; }
         if (await tryPlay(blobOf(r), startAt, token)) { done(); return; }
         log.push('SABR ' + sc + ': media ' + (el.error?.code ?? 'timeout'));

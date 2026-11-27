@@ -7,7 +7,7 @@ import {
   usePlayer, current, playList, addNext, jump, toggle, next, prev, seek, setMode, videoElement,
   cycleRepeat, toggleShuffle, toggleLike, useTime, togglePip, pickOutput,
 } from './player.js';
-import { setBeat, beatOn, onBeat, setBeatTarget } from './beat.js';
+import { setBeat, beatOn, onBeat, setBeatTarget, restoreBeat, beatStatus } from './beat.js';
 import { onOta, otaState, applyNow, BUILD, recheck } from './ota.js';
 import { canGoogleLogin, googleSignIn } from './googleLogin.js';
 
