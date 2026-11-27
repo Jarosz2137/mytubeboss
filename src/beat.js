@@ -105,7 +105,13 @@ window.addEventListener('mtb-audio', (e) => {
   const { id, parts, mime } = e.detail || {};
   pending.set(id, { parts, mime });
   while (pending.size > 3) pending.delete(pending.keys().next().value);
-  if (current()?.id === id) analyse(id, parts, mime);
+  // In the background nobody sees the animations: don't burn CPU, analyse when the app comes back.
+  if (current()?.id === id && !document.hidden) analyse(id, parts, mime);
+});
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden || !enabled) return;
+  const t = current(), p = t && pending.get(t.id);
+  if (p && !envs.has(t.id)) analyse(t.id, p.parts, p.mime);
 });
 
 let lastT = 0;
