@@ -710,3 +710,20 @@ html, body { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 .viz.wave i { flex: none; width: 3px; height: 100%; border-radius: 3px; animation: none !important; transform: scaleY(.08); transform-origin: center;
   background: linear-gradient(to bottom, color-mix(in srgb, var(--c1) 70%, white), var(--c1) 50%, color-mix(in srgb, var(--c2) 80%, white)); will-change: transform; }
 .np:not(.is-playing) .viz.wave i { transition: transform .5s ease; transform: scaleY(.08) !important; }
+
+/* ===== audio-reactive scene (BEAT): bass → cover, mid → background motion, high → glow & sheen ===== */
+.np { --bass: 0; --mid: 0; --high: 0; }
+.np.beat-on .np-blobs { transform: scale(calc(1 + var(--mid) * .14)) rotate(calc(var(--mid) * 8deg)); transition: transform .15s linear; }
+.np.beat-on .np-bg { opacity: calc(.45 + var(--mid) * .3); }
+.np.beat-on .np-sun { opacity: calc(.16 + var(--high) * .28 + var(--bass) * .08); }
+.np.beat-on .np-grid { opacity: calc(.22 + var(--mid) * .3); }
+.np-art { position: relative; }
+.np-art::before { content: ''; position: absolute; left: 50%; top: 50%; width: 92%; aspect-ratio: 1; border-radius: 50%; pointer-events: none; z-index: 0;
+  background: radial-gradient(circle, color-mix(in srgb, var(--c1) 75%, white) 0%, transparent 65%);
+  transform: translate(-50%, -50%) scale(calc(.9 + var(--bass) * .25)); opacity: 0; filter: blur(30px); will-change: opacity, transform; }
+.np.beat-on .np-art::before { opacity: calc(var(--high) * .55 + var(--bass) * .15); }
+.np.beat-on.mode-video .np-art::before { opacity: 0; }
+.np-strip { z-index: 1; }
+.np-strip .np-cover { position: relative; }
+.np.beat-on .np-strip .np-cover { filter: brightness(calc(1 + var(--high) * .12)) saturate(calc(1 + var(--mid) * .2)); }
+.np.beat-on .np-cover.big { box-shadow: 0 40px 90px -10px rgba(0,0,0,.7), 0 0 60px -6px var(--c1), 0 0 140px -20px var(--c3); }

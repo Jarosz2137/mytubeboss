@@ -101,9 +101,24 @@ function loop() {
     const i = Math.floor(audioElement.currentTime * 50);
     v = Math.max(env[i] || 0, (env[i + 1] || 0) * 0.6);
   }
-  cur = Math.max(1 + v * 0.085, cur * 0.88 + 0.12);
-  target.style.setProperty('--pulse', cur.toFixed(4));
+  cur = Math.max(1 + v * 0.07, cur * 0.88 + 0.12);
+  // Whole scene: bass / mid / high energy, fast attack and slow release so quiet parts calm down.
+  const L = bandLevels();
+  let bass = 0, mid = 0, high = 0;
+  if (L) {
+    bass = Math.max((L[0] + L[1]) / 2, v);
+    mid = (L[2] + L[3] + L[4]) / 3;
+    high = (L[5] + L[6] + L[7]) / 3;
+  }
+  const ease = (prev, t) => prev + (t - prev) * (t > prev ? 0.35 : 0.06);
+  sm.bass = ease(sm.bass, bass); sm.mid = ease(sm.mid, mid); sm.high = ease(sm.high, high);
+  const st = target.style;
+  st.setProperty('--pulse', cur.toFixed(4));
+  st.setProperty('--bass', sm.bass.toFixed(3));
+  st.setProperty('--mid', sm.mid.toFixed(3));
+  st.setProperty('--high', sm.high.toFixed(3));
 }
+const sm = { bass: 0, mid: 0, high: 0 };
 
 export function setBeatTarget(el) { target = el; }
 
@@ -127,11 +142,12 @@ export async function setBeat(on) {
   } else {
     cancelAnimationFrame(raf); raf = 0;
     target?.style.setProperty('--pulse', '1');
+    ['--bass', '--mid', '--high'].forEach((k) => target?.style.setProperty(k, '0'));
   }
   subs.forEach((f) => f(enabled));
 }
 
 export async function restoreBeat() {
   const { value } = await Preferences.get({ key: 'beat' });
-  if (value === '1') setBeat(true);
+  if (value !== '0') setBeat(true); // on by default (it no longer touches playback)
 }
