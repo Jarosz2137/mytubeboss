@@ -40,7 +40,7 @@ jobs:
       - name: Build bundle
         if: steps.cfg.outputs.ok == 'true'
         run: |
-          BUILD=$(date -u +%Y%m%d%H%M)
+          BUILD=$(date -u +%Y%m%d%H%M%S)
           echo "BUILD=$BUILD" >> "$GITHUB_ENV"
           VITE_BUILD=$BUILD VITE_OTA_REPO=$OTA_REPO npm run build
           (cd dist && zip -qr ../bundle.zip .)

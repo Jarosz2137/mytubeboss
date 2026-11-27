@@ -16,7 +16,7 @@ jobs:
           node-version: 22
       - run: npm ci
       - name: Build web (stamped with build number for OTA)
-        run: VITE_BUILD=$(date -u +%Y%m%d%H%M) npm run build
+        run: VITE_BUILD=$(date -u +%Y%m%d%H%M%S) npm run build
         env:
           VITE_OTA_REPO: ${{ vars.OTA_REPO || 'Jarosz2137/mytubeboss-ota' }}
       - run: npx cap add ios
