@@ -115,7 +115,7 @@ function put(st, k, v) { if (Math.abs((lastV[k] ?? -9) - v) < 0.004) return; las
 // (visualizer, scene, cover) just gets the result. Full display rate (120 Hz on ProMotion).
 const frameSubs = new Set();
 const SAMPLE_MS = 1000 / 30;
-let prevL = null, nextL = null, readAt = 0, blend = [];
+let prevL = null, nextL = null, readAt = 0, blend = [], lastKey = '';
 export function onFrame(f) { frameSubs.add(f); if (!raf) raf = requestAnimationFrame(loop); return () => frameSubs.delete(f); }
 function loop(now = 0) {
   if (!enabled && !frameSubs.size) { raf = 0; return; }
@@ -125,7 +125,9 @@ function loop(now = 0) {
   lastT = now;
   // Music is sampled at 30 Hz (one step ahead, so interpolation adds no lag);
   // every 120 Hz frame in between just blends the two samples.
-  if (now - readAt >= SAMPLE_MS || !nextL !== !bandLevels()) {
+  const key = (current()?.id || '') + (audioElement.paused ? 'p' : '');
+  if (now - readAt >= SAMPLE_MS || key !== lastKey) {
+    lastKey = key;
     prevL = nextL; nextL = bandLevels(SAMPLE_MS / 1000); readAt = now;
     if (!prevL || !nextL || prevL.length !== nextL.length) prevL = nextL;
   }
