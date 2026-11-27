@@ -6,7 +6,7 @@ import { useCoverColors } from './colors.js';
 import { getLogs, clearLogs } from './debuglog.js';
 import {
   usePlayer, current, playList, addNext, jump, toggle, next, prev, seek, setMode, videoElement,
-  cycleRepeat, toggleShuffle, toggleLike, useTime, togglePip, pickOutput, dismissLoginPrompt, pipIfVideo, RATES, setRate,
+  cycleRepeat, toggleShuffle, toggleLike, useTime, togglePip, pickOutput, dismissLoginPrompt, pipIfVideo, RATES, setRate, setSleep,
 } from './player.js';
 import { setBeat, beatOn, onBeat, setBeatTarget, restoreBeat, beatStatus, bandLevels, dropTime, onDrop } from './beat.js';
 import { onOta, otaState, applyNow, BUILD, recheck } from './ota.js';
@@ -927,6 +927,48 @@ function Visualizer() {
 
 // Apple-Music-style scrubber: grab anywhere, drag is relative (no jump on touch),
 // bar thickens while dragging, tap jumps to the spot.
+function SleepChip() {
+  const p = usePlayer();
+  const [, tick] = useState(0);
+  useEffect(() => { const i = setInterval(() => tick((x) => x + 1), 15000); return () => clearInterval(i); }, []);
+  const cur = p.sleep === 'track' ? 'track' : p.sleep ? 'time' : 0;
+  const label = cur === 'track' ? '🌙 koniec utworu' : cur === 'time' ? `🌙 ${Math.max(1, Math.round((p.sleep - Date.now()) / 60000))} min` : '🌙 Timer';
+  const cycle = () => {
+    tap();
+    const mins = cur === 'time' ? Math.round((p.sleep - Date.now()) / 60000) : 0;
+    const pick = cur === 0 ? 15 : cur === 'track' ? 0 : mins < 15 ? 30 : mins < 30 ? 45 : mins < 45 ? 60 : 'track';
+    setSleep(pick);
+  };
+  return <button className={`tool-chip ${cur ? 'lit' : ''}`} onClick={cycle}>{label}</button>;
+}
+
+// Car mode: huge controls, readable from a phone holder
+function CarMode() {
+  const p = usePlayer();
+  const t = current();
+  const [on, setOn] = useState(false);
+  useEffect(() => { const f = () => setOn(true); window.addEventListener('mtb-car', f); return () => window.removeEventListener('mtb-car', f); }, []);
+  if (!on || !t) return null;
+  return (
+    <div className="car">
+      <button className="car-x" onClick={() => { tap(); setOn(false); }} aria-label="Zamknij tryb auta">×</button>
+      <div className="car-main">
+        <Cover src={t.thumb} className="car-cover" />
+        <div className="car-meta">
+          <div className="car-title"><Marquee text={t.title} /></div>
+          <div className="car-sub"><Marquee text={t.subtitle} /></div>
+          <MiniProgress />
+        </div>
+      </div>
+      <div className="car-ctl">
+        <button onClick={() => { tap(); prev(); }} aria-label="Poprzedni">{Icon.prev}</button>
+        <button className="car-play" onClick={() => { tap(ImpactStyle.Medium); toggle(); }} aria-label="Odtwarzaj / pauza">{p.playing ? Icon.pause : Icon.play}</button>
+        <button onClick={() => { tap(); next(); }} aria-label="Następny">{Icon.next}</button>
+      </div>
+    </div>
+  );
+}
+
 // Drop jump + playback speed, above the scrubber
 function NpTools() {
   const p = usePlayer();
@@ -941,6 +983,8 @@ function NpTools() {
   return (
     <div className="np-tools">
       <button className={`tool-chip ${rate !== 1 ? 'lit' : ''}`} onClick={nextRate} onContextMenu={(e) => { e.preventDefault(); setRate(1); }}>{label}</button>
+      <SleepChip />
+      <button className="tool-chip" onClick={() => { tap(); window.dispatchEvent(new Event('mtb-car')); }}>🚗 Auto</button>
       {drop ? <button className="tool-chip drop" onClick={() => { tap(ImpactStyle.Medium); seek(Math.max(0, drop - 1.5)); }}>⚡ Skocz do dropu · {fmt(drop)}</button>
         : <span className="tool-chip ghosty">⚡ szukam dropu…</span>}
     </div>
@@ -1481,6 +1525,7 @@ export default function App() {
         <button className={tab === 'library' ? 'on' : ''} onClick={() => switchTab('library')}>{Icon.lib}<span>Biblioteka</span></button>
       </nav>
       <OtaPill />
+      <CarMode />
       <Welcome />
       <LoginPrompt />
       <OfflineBar />

@@ -414,6 +414,18 @@ on('playing', () => set({ playing: true, loading: false }));
 on('pause', () => set({ playing: false }));
 on('waiting', () => set({ loading: true }));
 on('canplay', () => set({ loading: false }));
+// ---- sleep timer: stop after N minutes (at the end of the track that's playing then) or at track end ----
+let sleepAt = 0, sleepEndOfTrack = false, sleepTimer = null;
+export function setSleep(minutes) {
+  clearInterval(sleepTimer); sleepTimer = null;
+  sleepEndOfTrack = minutes === 'track';
+  sleepAt = typeof minutes === 'number' && minutes > 0 ? Date.now() + minutes * 60000 : 0;
+  set({ sleep: sleepEndOfTrack ? 'track' : sleepAt || 0 });
+  if (sleepAt) sleepTimer = setInterval(() => { if (Date.now() >= sleepAt) { clearInterval(sleepTimer); sleepTimer = null; sleepAt = 0; sleepEndOfTrack = true; set({ sleep: 'track' }); } }, 5000);
+}
+export const sleepPending = () => sleepEndOfTrack;
+function sleepHit() { sleepEndOfTrack = false; set({ sleep: 0 }); el.pause(); }
+
 // ---- playback speed (sped up / slowed) ----
 export const RATES = [0.8, 0.9, 1, 1.15, 1.25];
 let rate = 1;
@@ -453,6 +465,7 @@ on('timeupdate', () => {
   updatePosition();
 });
 on('ended', () => {
+  if (sleepEndOfTrack) { sleepHit(); return; }
   if (state.guestLimited && el.currentTime < (current()?.duration || 0) - 5) {
     set({ playing: false, error: '', loginPrompt: true });
     return;

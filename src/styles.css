@@ -948,3 +948,28 @@ h1.big { font-size: 36px; margin: 22px 0 16px; background: linear-gradient(90deg
 @media (orientation: landscape) and (max-height: 600px) {
   .np-lyrics { grid-column: 1; grid-row: 1 / span 12; height: calc(100vh - var(--safe-top) - var(--safe-bot) - 24px); padding-top: 20%; }
 }
+
+/* ===== car mode ===== */
+.car { position: fixed; inset: 0; z-index: 350; background: radial-gradient(120% 90% at 30% 20%, color-mix(in srgb, var(--c1, #ff5e8a) 35%, #050507) 0%, #050507 70%);
+  display: flex; flex-direction: column; justify-content: space-between; padding: calc(var(--safe-top) + 16px) calc(var(--safe-r) + 24px) calc(var(--safe-bot) + 24px) calc(var(--safe-l) + 24px); box-sizing: border-box; animation: bgFade .3s ease both; }
+.car-x { align-self: flex-end; width: 56px; height: 56px; border-radius: 50%; border: 0; font-size: 34px; line-height: 1; color: #fff; background: rgba(255,255,255,.12); }
+.car-main { display: flex; flex-direction: column; align-items: center; gap: 22px; min-height: 0; }
+.car-cover { width: min(70vw, 42vh); border-radius: 22px; box-shadow: 0 30px 60px rgba(0,0,0,.6); }
+.car-meta { width: 100%; text-align: center; position: relative; }
+.car-title { font-size: 34px; font-weight: 800; letter-spacing: -.01em; }
+.car-sub { font-size: 22px; color: rgba(255,255,255,.7); margin-top: 4px; }
+.car-meta .mini-progress { position: relative; height: 6px; border-radius: 3px; margin-top: 18px; transform-origin: left; background: var(--c1, #ff5e8a); }
+.car-ctl { display: flex; justify-content: space-around; align-items: center; }
+.car-ctl button { width: 96px; height: 96px; border-radius: 50%; border: 0; color: #fff; background: rgba(255,255,255,.1); display: flex; align-items: center; justify-content: center; }
+.car-ctl button svg { width: 44px; height: 44px; fill: currentColor; }
+.car-ctl .car-play { width: 130px; height: 130px; background: #fff; color: #050507; }
+.car-ctl .car-play svg { width: 60px; height: 60px; }
+@media (orientation: landscape) and (max-height: 600px) {
+  .car { flex-direction: row; align-items: center; }
+  .car-x { position: absolute; top: calc(var(--safe-top) + 12px); right: calc(var(--safe-r) + 16px); }
+  .car-main { flex-direction: row; flex: 1; gap: 26px; }
+  .car-cover { width: 52vh; }
+  .car-meta { text-align: left; flex: 1; min-width: 0; }
+  .car-ctl { flex-direction: column; gap: 14px; }
+  .car-ctl button { width: 76px; height: 76px; } .car-ctl .car-play { width: 100px; height: 100px; }
+}
