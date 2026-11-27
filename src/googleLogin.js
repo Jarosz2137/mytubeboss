@@ -5,10 +5,19 @@ import { signInWithCookie } from './yt.js';
 
 const GoogleLogin = registerPlugin('GoogleLogin');
 
-export const canGoogleLogin = () => Capacitor.isNativePlatform() && Capacitor.isPluginAvailable('GoogleLogin');
+// Show the button on every native build; if the native part is missing, the tap reports it.
+export const canGoogleLogin = () => Capacitor.isNativePlatform();
+export const googlePluginPresent = () => Capacitor.isPluginAvailable('GoogleLogin');
 
 export async function googleSignIn() {
-  const { cookie } = await GoogleLogin.signIn();
+  let res;
+  try { res = await GoogleLogin.signIn(); }
+  catch (e) {
+    const m = e?.message || String(e);
+    if (/not implemented|unimplemented/i.test(m)) throw new Error('Ta wersja apki nie ma jeszcze logowania Google (wgraj nowy IPA). [' + m + ']');
+    throw e;
+  }
+  const { cookie } = res || {};
   if (!cookie) throw new Error('Google nie zwrócił sesji, spróbuj jeszcze raz.');
   await signInWithCookie(cookie);
 }
