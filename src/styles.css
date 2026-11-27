@@ -769,3 +769,22 @@ html, body { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 .sc-dots.far { background-size: 14px 14px; opacity: .2; animation-duration: 40s; animation-direction: reverse; }
 @keyframes dotsDrift { to { transform: translate(26px, 52px); } }
 .np.beat-on .sc-dots { opacity: calc(.25 + var(--high) * .4); }
+
+/* ===== more flash ===== */
+.np { --kick: 0; }
+.np::after { content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 0; opacity: 0;
+  background: radial-gradient(120% 80% at 50% 35%, color-mix(in srgb, var(--c1) 80%, white) 0%, transparent 60%); mix-blend-mode: screen; }
+.np.beat-on::after { opacity: calc(var(--kick) * .45 + var(--high) * .12); }
+.np.beat-on .np-scene { opacity: calc(.7 + var(--kick) * .6 + var(--high) * .3); }
+.np.beat-on .np-blobs { transform: scale(calc(1 + var(--mid) * .28 + var(--kick) * .1)) rotate(calc(var(--mid) * 14deg)); }
+.np.beat-on .np-sun { opacity: calc(.18 + var(--high) * .5 + var(--kick) * .25); }
+.np.beat-on .np-grid { opacity: calc(.25 + var(--mid) * .4 + var(--kick) * .3); }
+.np.beat-on .np-art::before { opacity: calc(var(--high) * .9 + var(--kick) * .6); transform: translate(-50%, -50%) scale(calc(.9 + var(--bass) * .35 + var(--kick) * .2)); }
+.np.beat-on .np-strip .np-cover { filter: brightness(calc(1 + var(--high) * .2 + var(--kick) * .12)) saturate(calc(1 + var(--mid) * .35)); }
+.np.beat-on .sc-rings { transform: scale(calc(1 + var(--bass) * .2 + var(--kick) * .15)); }
+.np.beat-on .sc-tunnel { transform: rotate(calc(var(--mid) * 20deg)) scale(calc(1 + var(--kick) * .12)); }
+.np.beat-on .sc-hex { transform: translate(-50%, -50%) scale(calc(1 + var(--bass) * .14 + var(--kick) * .1)); }
+.np.beat-on .sc-prism { transform: translate(-50%, -50%) scale(calc(1 + var(--mid) * .18 + var(--kick) * .1)); }
+.np.beat-on .sc-dots { opacity: calc(.3 + var(--high) * .6 + var(--kick) * .3); }
+.np.beat-on .sc-hex polygon, .np.beat-on .sc-prism polygon { stroke-width: calc(.6 + var(--kick) * 1.4); }
+.np-inner { position: relative; z-index: 1; }

@@ -101,7 +101,8 @@ function loop() {
     const i = Math.floor(audioElement.currentTime * 50);
     v = Math.max(env[i] || 0, (env[i + 1] || 0) * 0.6);
   }
-  cur = Math.max(1 + v * 0.07, cur * 0.88 + 0.12);
+  cur = Math.max(1 + v * 0.11, cur * 0.86 + 0.14);
+  kick = Math.max(v, kick * 0.82); // fast-decaying flash on every bass hit
   // Whole scene: bass / mid / high energy, fast attack and slow release so quiet parts calm down.
   const L = bandLevels();
   let bass = 0, mid = 0, high = 0;
@@ -110,15 +111,17 @@ function loop() {
     mid = (L[2] + L[3] + L[4]) / 3;
     high = (L[5] + L[6] + L[7]) / 3;
   }
-  const ease = (prev, t) => prev + (t - prev) * (t > prev ? 0.35 : 0.06);
+  const ease = (prev, t) => prev + (t - prev) * (t > prev ? 0.6 : 0.08);
   sm.bass = ease(sm.bass, bass); sm.mid = ease(sm.mid, mid); sm.high = ease(sm.high, high);
   const st = target.style;
   st.setProperty('--pulse', cur.toFixed(4));
   st.setProperty('--bass', sm.bass.toFixed(3));
   st.setProperty('--mid', sm.mid.toFixed(3));
   st.setProperty('--high', sm.high.toFixed(3));
+  st.setProperty('--kick', kick.toFixed(3));
 }
 const sm = { bass: 0, mid: 0, high: 0 };
+let kick = 0;
 
 export function setBeatTarget(el) { target = el; }
 
@@ -142,7 +145,7 @@ export async function setBeat(on) {
   } else {
     cancelAnimationFrame(raf); raf = 0;
     target?.style.setProperty('--pulse', '1');
-    ['--bass', '--mid', '--high'].forEach((k) => target?.style.setProperty(k, '0'));
+    ['--bass', '--mid', '--high', '--kick'].forEach((k) => target?.style.setProperty(k, '0'));
   }
   subs.forEach((f) => f(enabled));
 }
