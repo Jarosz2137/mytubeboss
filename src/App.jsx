@@ -12,6 +12,7 @@ import { onOta, otaState, applyNow, BUILD, recheck } from './ota.js';
 import { canGoogleLogin, googleSignIn } from './googleLogin.js';
 import { loadLocal, onLocal, localLists, getLocal, createLocal, addToLocal, removeFromLocal, renameLocal, deleteLocal, localCard, isLocalId, onAddSheet, openAddSheet } from './local.js';
 import { readPlaylist, matchTracks, detectSource } from './importer.js';
+import { loadIndex, onOffline, offlineState, isDownloaded, isQueued, downloadTracks, downloadedTracks, removeDownload } from './offline.js';
 
 /* ---------------- helpers ---------------- */
 
@@ -89,6 +90,7 @@ const fmt = (s) => {
 function kindOf(item) {
   const id = item.id || '';
   if (isLocalId(id)) return 'local';
+  if (item.type === 'downloads') return 'downloads';
   if (yt.isPlayable(item)) return 'track';
   if (item.type === 'artist' || item.type === 'library_artist' || id.startsWith('UC')) return 'artist';
   if (item.type === 'album' || id.startsWith('MPR')) return 'album';
@@ -183,6 +185,7 @@ function TrackRow({ t, list, i, onOpen, showCover = true, index, onRemove }) {
           ><Marquee text={t.subtitle} /></span>
         </div>
       </div>
+      {isDownloaded(t.id) && <span className="row-dl" aria-label="Pobrane">{Icon.download}</span>}
       {active && p.playing ? <div className="eq"><span /><span /><span /></div> : <div className="row-dur">{t.duration ? fmt(t.duration) : ''}</div>}
       {onRemove
         ? <button className="icon-btn small" onClick={(e) => { e.stopPropagation(); tap(); onRemove(); }} aria-label="Usuń z playlisty">{Icon.minus}</button>
@@ -391,6 +394,7 @@ function LocalShelf({ onOpen }) {
   return (
     <section className="section local-shelf">
       <div className="sec-head"><h2>W telefonie</h2></div>
+      <button className="lib-tile downloads slim" onClick={() => onOpen({ type: 'downloads', id: 'downloads' })}>{Icon.download}<span>Pobrane utwory</span></button>
       <div className="local-actions">
         <button className="secondary" onClick={() => { tap(); create(); }}>{Icon.plus} Nowa playlista</button>
         <button className="secondary" onClick={() => { tap(); setImporting(true); }}>{Icon.download} Import ze Spotify / Apple Music</button>
@@ -478,6 +482,9 @@ function AddSheet() {
               </button>
             ))}
             <button className="add-item" onClick={() => { tap(); addNext(track); close(); }}>{Icon.next} Zagraj jako następny</button>
+            {isDownloaded(track.id)
+              ? <button className="add-item" onClick={() => { tap(); removeDownload(track.id); close(); }}>{Icon.minus} Usuń z pobranych</button>
+              : <button className="add-item" onClick={() => { tap(); downloadTracks([track]); setDone('pobierania'); setTimeout(close, 700); }}>{Icon.download} Pobierz na telefon</button>}
           </>
         )}
       </div>
@@ -556,6 +563,7 @@ function LibraryView({ onOpen, fresh }) {
       <h1 className="big">Biblioteka</h1>
       <div className="lib-quick">
         <div className="lib-tile liked" onClick={() => onOpen({ type: 'playlist', id: 'LM', title: 'Polubione' })}>♥<span>Polubione utwory</span></div>
+        <div className="lib-tile downloads" onClick={() => onOpen({ type: 'downloads', id: 'downloads' })}>{Icon.download}<span>Pobrane</span></div>
       </div>
       <LocalShelf onOpen={onOpen} />
       {lib.loading && (lib.data ? <div className="refreshing" /> : <Loader />)}
@@ -591,7 +599,59 @@ function ArtistView({ id, onOpen }) {
   );
 }
 
-function DownloadAllButton() { return null; }
+function useOffline() {
+  const [st, setSt] = useState({ ...offlineState, count: 0 });
+  useEffect(() => { loadIndex(); return onOffline(setSt); }, []);
+  return st;
+}
+
+function DownloadAllButton({ tracks }) {
+  const st = useOffline();
+  const playable = (tracks || []).filter(yt.isPlayable);
+  if (!playable.length) return null;
+  const have = playable.filter((t) => isDownloaded(t.id)).length;
+  const busy = playable.some((t) => isQueued(t.id));
+  const all = have === playable.length;
+  return (
+    <button className={`secondary dl-btn ${all ? 'done' : ''}`} disabled={all || busy} onClick={() => { tap(); downloadTracks(playable); }}>
+      {all ? Icon.check : Icon.download} {all ? 'Pobrane' : busy ? `Pobieram ${have}/${playable.length}` : have ? `Pobierz resztę (${playable.length - have})` : 'Pobierz'}
+      {st.error && !busy && <span className="dl-err" />}
+    </button>
+  );
+}
+
+// Banner while songs download in the background
+function OfflineBar() {
+  const st = useOffline();
+  if (!st.current) return null;
+  return (
+    <div className="offline-bar">
+      {Icon.download}<span><Marquee text={`Pobieram: ${st.current.title} · ${(st.progress / 1048576).toFixed(1)} MB${st.queue.length ? ` · jeszcze ${st.queue.length}` : ''}`} /></span>
+    </div>
+  );
+}
+
+function DownloadsView({ onOpen }) {
+  const st = useOffline();
+  const tracks = downloadedTracks();
+  return (
+    <div className="view">
+      <h1 className="big">Pobrane</h1>
+      <p className="hint">{tracks.length} utworów w telefonie. Grają bez internetu.</p>
+      {tracks.length > 0 && (
+        <div className="coll-actions">
+          <button className="primary" onClick={() => playList(tracks, 0)}>{Icon.play} Odtwórz</button>
+          <button className="secondary" onClick={() => playList(tracks.slice().sort(() => Math.random() - 0.5), 0)}>⤮ Losowo</button>
+        </div>
+      )}
+      {st.error && <Err text={st.error} />}
+      <div className="tracklist">
+        {tracks.map((t, i) => <TrackRow key={t.id} t={t} list={tracks} i={i} onOpen={onOpen} onRemove={() => { if (confirm(`Usunąć „${t.title}” z pobranych?`)) removeDownload(t.id); }} />)}
+      </div>
+      {!tracks.length && <p className="empty-note">Nic jeszcze nie pobrałeś. Przytrzymaj utwór i wybierz „Pobierz na telefon” albo użyj przycisku „Pobierz” na playliście.</p>}
+    </div>
+  );
+}
 
 function LocalCollection({ id, onOpen, onBack }) {
   const [, force] = useState(0);
@@ -642,6 +702,7 @@ function CollectionView({ id, kind, onOpen }) {
             const sh = c.tracks.slice().sort(() => Math.random() - 0.5);
             playList(sh, 0);
           }}>⤮ Losowo</button>
+          <DownloadAllButton tracks={c.tracks} />
         </div>
       </div>
       <div className="tracklist">
@@ -1119,6 +1180,7 @@ export default function App() {
         {top?.kind === 'artist' && <ArtistView key={top.id} id={top.id} onOpen={open} />}
         {(top?.kind === 'album' || top?.kind === 'playlist') && <CollectionView key={top.id} id={top.id} kind={top.kind} onOpen={open} />}
         {top?.kind === 'local' && <LocalCollection key={top.id} id={top.id} onOpen={open} onBack={back} />}
+        {top?.kind === 'downloads' && <DownloadsView key="dl" onOpen={open} />}
       </main>
       <MiniPlayer hidden={npOpen} onDrag={dragSheet} onDragEnd={endDragSheet} />
       <nav className="tabs">
@@ -1127,6 +1189,7 @@ export default function App() {
         <button className={tab === 'library' ? 'on' : ''} onClick={() => switchTab('library')}>{Icon.lib}<span>Biblioteka</span></button>
       </nav>
       <OtaPill />
+      <OfflineBar />
       <AddSheet />
       <VideoPop show={!npOpen} onOpen={() => setNpOpen(true)} />
       <NowPlaying sheetRef={sheetRef} open={npOpen} onClose={() => setNpOpen(false)} onOpen={open} />

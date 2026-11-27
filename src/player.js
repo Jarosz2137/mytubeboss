@@ -1,5 +1,6 @@
 // Playback engine: one <video> element for both audio and music videos,
 // a queue, autoplay radio, and lock-screen / Dynamic Island metadata.
+import { getDownload } from './offline.js';
 import { useSyncExternalStore } from 'react';
 import { streamUrl, audioBlobUrl, sabrAudioChunks, hlsUrl, counterpartId, CLIENTS, upNext } from './yt.js';
 import * as ytmod from './yt.js';
@@ -170,6 +171,14 @@ async function load(startAt = 0) {
   const done = () => { suppressErrors = false; set({ error: '' }); prefetchNext(); };
 
   if (mode === 'audio') {
+    // 0) saved for offline on the phone
+    const off = await getDownload(track.id).catch(() => null);
+    if (token !== loadToken) return;
+    if (off?.parts?.length) {
+      if (off.durationMs) setTime({ duration: off.durationMs / 1000 });
+      const ctl = makeMse(off, startAt, token);
+      if (ctl) { off.parts.forEach((c) => ctl.push(c)); ctl.end(); announce(track.id, off); done(); return; }
+    }
     // 1) already downloaded in the background
     const pre = ready.get(track.id);
     if (pre) {
