@@ -997,3 +997,4 @@ h1.big { font-size: 36px; margin: 22px 0 16px; background: linear-gradient(90deg
 .np-top-r .icon-btn { width: 36px; padding: 0; }
 .np-top-r .beat-btn { margin: 0 4px 0 0; padding: 7px 9px; }
 .np-cover { max-width: 82cqh; max-height: 82cqh; }
+@media (orientation: portrait) { .np-inner { padding-bottom: calc(var(--safe-bot) + 2px); } .np-controls { margin-top: 10px; } }
