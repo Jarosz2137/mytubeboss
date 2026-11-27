@@ -1056,7 +1056,11 @@ function Scene({ id }) {
     <div className={`np-scene sc-${kind}`} key={kind} aria-hidden="true">
       {kind === 'grid' && (<><div className="np-sun" /><div className="np-grid" /></>)}
       {kind === 'rings' && (<div className="sc-rings">{[0, 1, 2, 3, 4, 5].map((i) => <i key={i} style={{ '--i': i }} />)}</div>)}
-      {kind === 'tunnel' && (<div className="sc-tunnel">{[0, 1, 2, 3, 4, 5, 6, 7].map((i) => <i key={i} style={{ '--i': i }} />)}</div>)}
+      {kind === 'tunnel' && (
+        <svg className="sc-tunnel2" viewBox="-100 -100 200 200">
+          {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => <rect key={i} style={{ '--i': i }} x="-60" y="-60" width="120" height="120" rx="9" />)}
+        </svg>
+      )}
       {kind === 'hex' && (
         <svg className="sc-hex" viewBox="-100 -100 200 200">
           {[0, 1, 2, 3, 4].map((i) => (

@@ -1024,9 +1024,6 @@ h1.big { font-size: 36px; margin: 22px 0 16px; background: linear-gradient(90deg
 .lite .np-side .cover { animation: none !important; }
 .lite * { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
 
-/* straighter float: no tilt on the whole strip, just a gentle vertical drift */
-@keyframes swayY { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-7px); } }
-.np-sway { animation-name: swayY; animation-duration: 5s; }
 /* animating a 1400px shadow blur every frame was the real GPU hog -> static glow */
 .np.beat-on .np-cover.big { box-shadow: 0 40px 90px -10px rgba(0,0,0,.7), 0 0 70px -10px var(--c1), 0 0 140px -20px var(--c3) !important; }
 /* header row must fit narrow screens */
@@ -1035,3 +1032,11 @@ h1.big { font-size: 36px; margin: 22px 0 16px; background: linear-gradient(90deg
 .np-top-r .icon-btn { width: 32px; }
 .np-top-r .beat-btn { padding: 6px 7px; letter-spacing: 1.5px; }
 .np-top-r { min-width: 0; }
+
+/* tunnel as crisp vector squares (the scaled-up bitmap borders looked wonky) */
+.sc-tunnel2 { position: absolute; left: 50%; top: 38%; width: 170vmax; height: 170vmax; transform: translate(-50%, -50%); overflow: visible; }
+.sc-tunnel2 rect { fill: none; stroke: color-mix(in srgb, var(--c2) 65%, white); stroke-width: 1.5px; vector-effect: non-scaling-stroke;
+  transform-box: view-box; transform-origin: 0 0; opacity: 0; animation: tunnel2 8s linear infinite; animation-delay: calc(var(--i) * -1s); }
+@keyframes tunnel2 { 0% { transform: scale(.02) rotate(0deg); opacity: 0; } 20% { opacity: .45; } 100% { transform: scale(1.1) rotate(90deg); opacity: 0; } }
+.np.beat-on .sc-tunnel2 { transform: translate(-50%, -50%) scale(calc(1 + var(--kick) * .1)); }
+.np.beat-on .sc-tunnel2 rect { stroke-width: calc(1.5px + var(--kick) * 2px); }
