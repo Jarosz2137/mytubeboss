@@ -1023,3 +1023,15 @@ h1.big { font-size: 36px; margin: 22px 0 16px; background: linear-gradient(90deg
 .lite .np-strip .np-cover::after { display: none; }
 .lite .np-side .cover { animation: none !important; }
 .lite * { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
+
+/* straighter float: no tilt on the whole strip, just a gentle vertical drift */
+@keyframes swayY { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-7px); } }
+.np-sway { animation-name: swayY; animation-duration: 5s; }
+/* animating a 1400px shadow blur every frame was the real GPU hog -> static glow */
+.np.beat-on .np-cover.big { box-shadow: 0 40px 90px -10px rgba(0,0,0,.7), 0 0 70px -10px var(--c1), 0 0 140px -20px var(--c3) !important; }
+/* header row must fit narrow screens */
+.np-top { gap: 4px; }
+.np-top .seg button { padding-left: 9px; padding-right: 9px; font-size: 13px; }
+.np-top-r .icon-btn { width: 32px; }
+.np-top-r .beat-btn { padding: 6px 7px; letter-spacing: 1.5px; }
+.np-top-r { min-width: 0; }
