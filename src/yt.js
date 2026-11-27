@@ -553,7 +553,9 @@ function getPlayYT() {
         const po_token = await minter.mintAsWebsafeString(binding);
         const yt = await Innertube.create({ ...base, visitor_data: visitorData, po_token });
         poStatus = 'ok' + (cookie ? ' (konto)' : '');
-        return { yt, minter, po_token, fetchFn, visitorData, binding };
+        // A brand-new anonymous visitor (used to continue a song past the per-visitor limit).
+        const freshYT = () => Innertube.create({ ...base, cookie: undefined, generate_session_locally: true });
+        return { yt, minter, po_token, fetchFn, visitorData, binding, freshYT };
       } catch (e) {
         poStatus = 'błąd: ' + String(e?.message || e).slice(0, 220);
         console.warn('PO token failed', e);
@@ -632,7 +634,9 @@ export async function sabrAudioBlobUrl(id, onProgress, client = 'WEB') {
 
 // Streams the audio track; calls onMeta once (full mime + duration) and onChunk per piece.
 export async function sabrAudioChunks(id, { onMeta, onChunk, onProgress } = {}, client = 'WEB') {
-  const { yt, minter, po_token, fetchFn, binding, visitorData } = await getPlayYT();
+  const { yt: mainYT, minter, po_token, fetchFn, binding, visitorData, freshYT } = await getPlayYT();
+  let yt = mainYT;
+  const anonymous = !(binding && binding !== visitorData);
   // GVS (googlevideo) PO tokens for web are bound to the video ID (yt-dlp PO Token Guide).
   // Logged in we keep the account binding that already works; anonymous uses the video ID.
   const gvsBinding = binding && binding !== visitorData ? binding : id;
@@ -757,6 +761,11 @@ export async function sabrAudioChunks(id, { onMeta, onChunk, onProgress } = {}, 
     console.info('[SABR] session', session + 1, 'cut at', r.endMs, 'ms, continuing in a new session', r.snapshot ? '(snapshot ' + r.snapshot.playerTimeMs + ' ms)' : '(no snapshot)');
     startMs = r.endMs;
     snapshot = r.snapshot;
+    // The limit is per anonymous visitor + video, so continue as a new visitor.
+    if (anonymous && freshYT) {
+      try { yt = await freshYT(); console.info('[SABR] new visitor', String(yt.session.context.client.visitorData).slice(0, 16)); }
+      catch (e) { console.warn('[SABR] fresh visitor failed', e?.message); }
+    }
     const next = await loadInfo();
     cfg = { serverAbrStreamingUrl: next.serverAbrStreamingUrl, videoPlaybackUstreamerConfig: next.videoPlaybackUstreamerConfig };
   }
