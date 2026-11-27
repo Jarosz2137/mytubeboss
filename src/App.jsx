@@ -8,7 +8,7 @@ import {
   cycleRepeat, toggleShuffle, toggleLike, useTime, togglePip, pickOutput,
 } from './player.js';
 import { setBeat, beatOn, onBeat, setBeatTarget } from './beat.js';
-import { onOta, otaState, applyNow } from './ota.js';
+import { onOta, otaState, applyNow, BUILD, recheck } from './ota.js';
 import { canGoogleLogin, googleSignIn } from './googleLogin.js';
 
 /* ---------------- helpers ---------------- */
@@ -413,6 +413,7 @@ function LibraryView({ onOpen, fresh }) {
           {!canGoogleLogin() && err && <Err text={err} />}
           </details>
         </div>
+        <VersionLine />
       </div>
     );
   }
@@ -430,6 +431,7 @@ function LibraryView({ onOpen, fresh }) {
         {canGoogleLogin() && <button className="ghost" onClick={async () => { await yt.signOut(); try { await googleSignIn(); } catch { /* cancelled */ } }}>Zmień konto</button>}
         <button className="ghost" onClick={() => yt.signOut()}>Wyloguj</button>
       </div>
+      <VersionLine />
     </div>
   );
 }
@@ -845,6 +847,18 @@ function VideoPop({ show, onOpen }) {
         </button>
       </div>
     </div>
+  );
+}
+
+// Small version line at the bottom of the Library: shows what's running and what OTA is doing.
+function VersionLine() {
+  const [o, setO] = useState(otaState);
+  useEffect(() => onOta(setO), []);
+  const label = { idle: '', checking: 'sprawdzam…', latest: 'aktualna', downloading: `pobieram ${o.version}…`, ready: 'nowa wersja gotowa', error: `błąd: ${o.message || ''}` }[o.status] || o.status;
+  return (
+    <button className="version-line" onClick={() => (o.status === 'ready' ? applyNow() : recheck())}>
+      Wersja {BUILD || 'dev'}{o.remote ? ` · serwer ${o.remote}` : ''}{label ? ` · ${label}` : ''}
+    </button>
   );
 }
 
