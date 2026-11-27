@@ -1090,3 +1090,7 @@ h1.big { font-size: 36px; margin: 22px 0 16px; background: linear-gradient(90deg
 /* beat: scale + brightness of the whole group (compositor only) */
 .np.beat-on .sc-hex2 { transform: scale(calc(1 + var(--bass) * .14 + var(--kick) * .1)); opacity: calc(.8 + var(--kick) * .4); }
 .np.beat-on .sc-prism2 { transform: scale(calc(1 + var(--mid) * .18 + var(--kick) * .1)); opacity: calc(.8 + var(--kick) * .4); }
+
+/* only the visible screen animates: player closed -> its scene/cover/bars freeze; player open -> the app behind it freezes */
+html:not(.np-open) .np *, html:not(.np-open) .np *::before, html:not(.np-open) .np *::after { animation-play-state: paused !important; }
+html.np-open .scroller *, html.np-open .ambient * { animation-play-state: paused !important; }
