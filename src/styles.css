@@ -1040,3 +1040,12 @@ h1.big { font-size: 36px; margin: 22px 0 16px; background: linear-gradient(90deg
 @keyframes tunnel2 { 0% { transform: scale(.02) rotate(0deg); opacity: 0; } 20% { opacity: .45; } 100% { transform: scale(1.1) rotate(90deg); opacity: 0; } }
 .np.beat-on .sc-tunnel2 { transform: translate(-50%, -50%) scale(calc(1 + var(--kick) * .1)); }
 .np.beat-on .sc-tunnel2 rect { stroke-width: calc(1.5px + var(--kick) * 2px); }
+
+/* contrasting accent: the cover colour's opposite hue, bright */
+.np { --cx: hsl(from var(--c1, #ff5e8a) calc(h + 180) 95% 62%); --cx2: hsl(from var(--c1, #ff5e8a) calc(h + 150) 95% 60%); }
+.sc-rings i { border-color: var(--cx); }
+.sc-tunnel2 rect { stroke: var(--cx); }
+.sc-hex polygon { stroke: var(--cx); opacity: .5; }
+.sc-prism polygon { stroke: var(--cx2); opacity: .5; }
+.sc-stars i { background: var(--cx); box-shadow: 0 0 8px 2px color-mix(in srgb, var(--cx) 80%, transparent); }
+.viz.wave i { background: linear-gradient(180deg, var(--cx), var(--cx2)) !important; }
