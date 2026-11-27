@@ -654,69 +654,98 @@ export async function sabrAudioChunks(id, { onMeta, onChunk, onProgress } = {}, 
   const formats = (sd.adaptive_formats || []).map((f) => buildSabrFormat(f));
   const c = yt.session.context.client;
 
-  const sabr = new SabrStream({
-    videoId: id,
-    fetchFunction: fetchFn,
-    serverAbrStreamingUrl,
-    videoPlaybackUstreamerConfig: ustreamer,
-    poToken: po_token,
-    formats,
-    clientInfo: { clientName: SABR_CLIENTS[client].id, clientVersion: SABR_CLIENTS[client].version || c.clientVersion, osName: c.osName, osVersion: c.osVersion },
-    callbacks: {
-      // YouTube asks for attestation (~1 min in); without this the stream just stops.
-      onMintPoToken: minter ? async () => { console.info('[SABR] minting PO for', binding?.slice(0, 12)); return minter.mint(binding); } : undefined,
-      onReloadPlayerResponse: async () => {
-        const r = await loadInfo();
-        return { serverAbrStreamingUrl: r.serverAbrStreamingUrl, videoPlaybackUstreamerConfig: r.videoPlaybackUstreamerConfig };
-      },
-    },
-  });
-  let sps = '';
-  try { sabr.on('streamProtectionStatusUpdate', (x) => { sps = String(x?.status ?? ''); console.info('[SABR] sps', x); }); } catch { /* */ }
-  let sabrErr = null;
-  try { sabr.on('error', (e) => { sabrErr = e; }); } catch { /* */ }
-  const { audioStream, videoStream, selectedFormats } = sabr.start({
-    enabledTrackTypes: EnabledTrackTypes.AUDIO_ONLY,
-    audioPreferences: { container: 'mp4', preferredAudioCodec: 'aac', quality: 'AUDIO_QUALITY_MEDIUM' },
-    isPostLiveDvr: false,
-  });
-  const fmt = selectedFormats?.audioFormat;
-  const meta = { mime: fmt?.mimeType || 'audio/mp4; codecs="mp4a.40.2"', durationMs: Number(fmt?.approxDurationMs) || 0 };
-  onMeta?.(meta);
-  // Drain the (empty) video track so backpressure never stalls the session.
-  if (videoStream) {
-    (async () => { const r = videoStream.getReader(); for (;;) { const { done } = await r.read(); if (done) break; } })().catch(() => {});
-  }
-  const reader = audioStream.getReader();
+  // One SABR session. Anonymous sessions only get ~70 s before YouTube asks for an attestation
+  // it won't accept; when that happens we open a fresh session (new player response) from where
+  // the previous one stopped and keep appending. Logged-in sessions normally run in one go.
+  let cfg = { serverAbrStreamingUrl, videoPlaybackUstreamerConfig: ustreamer };
+  let meta = null;
   const parts = [];
   let bytes = 0;
-  let lastChunk = Date.now();
-  const watchdog = setInterval(() => {
-    if (Date.now() - lastChunk > 25000) {
-      clearInterval(watchdog);
-      sabr.abort().catch(() => {});
-      reader.cancel(new Error('stall')).catch(() => {});
+  let sps = '';
+  const durationMsTotal = Number(sd.adaptive_formats?.find((f) => f.mime_type?.startsWith('audio/mp4'))?.approx_duration_ms) || 0;
+
+  const runSession = (startTimeMs) => new Promise((resolve, reject) => {
+    const sabr = new SabrStream({
+      videoId: id,
+      fetchFunction: fetchFn,
+      serverAbrStreamingUrl: cfg.serverAbrStreamingUrl,
+      videoPlaybackUstreamerConfig: cfg.videoPlaybackUstreamerConfig,
+      poToken: po_token,
+      formats,
+      clientInfo: { clientName: SABR_CLIENTS[client].id, clientVersion: SABR_CLIENTS[client].version || c.clientVersion, osName: c.osName, osVersion: c.osVersion },
+      callbacks: {
+        onMintPoToken: minter ? async () => minter.mint(binding) : undefined,
+        onReloadPlayerResponse: async () => {
+          const r = await loadInfo();
+          return { serverAbrStreamingUrl: r.serverAbrStreamingUrl, videoPlaybackUstreamerConfig: r.videoPlaybackUstreamerConfig };
+        },
+      },
+    });
+    let bufferedMs = startTimeMs;
+    let pending = false;
+    try { sabr.on('streamProtectionStatusUpdate', (x) => { sps = String(x?.status ?? ''); pending = x?.status === 2 || x?.status === 3; }); } catch { /* */ }
+    try { sabr.on('trackStateUpdate', (tc) => { const b = tc?.buffered; if (Number.isFinite(b) && b > bufferedMs) bufferedMs = b; }); } catch { /* */ }
+    let sabrErr = null;
+    try { sabr.on('error', (e) => { sabrErr = e; }); } catch { /* */ }
+    const { audioStream, videoStream, selectedFormats } = sabr.start({
+      enabledTrackTypes: EnabledTrackTypes.AUDIO_ONLY,
+      audioPreferences: { container: 'mp4', preferredAudioCodec: 'aac', quality: 'AUDIO_QUALITY_MEDIUM' },
+      isPostLiveDvr: false,
+      startTimeMs,
+    });
+    if (!meta) {
+      const fmt = selectedFormats?.audioFormat;
+      meta = { mime: fmt?.mimeType || 'audio/mp4; codecs="mp4a.40.2"', durationMs: Number(fmt?.approxDurationMs) || durationMsTotal };
+      onMeta?.(meta);
     }
-  }, 2000);
-  try {
-    for (;;) {
-      let res;
-      try { res = await reader.read(); } catch (e) {
-        throw new Error('SABR: ' + (e?.message || e) + ' po ' + Math.round(bytes / 1024) + ' KB (sps ' + sps + ')');
+    if (videoStream) {
+      (async () => { const r = videoStream.getReader(); for (;;) { const { done } = await r.read(); if (done) break; } })().catch(() => {});
+    }
+    const reader = audioStream.getReader();
+    let lastChunk = Date.now();
+    let cut = false;
+    const watchdog = setInterval(() => {
+      const idle = Date.now() - lastChunk;
+      // attestation wall: stop early and let the caller open a new session
+      if ((pending && idle > 5000) || idle > 25000) {
+        cut = true;
+        clearInterval(watchdog);
+        sabr.abort().catch(() => {});
+        reader.cancel(new Error('stall')).catch(() => {});
       }
-      const { done, value } = res;
-      if (done) break;
-      parts.push(value);
-      onChunk?.(value);
-      bytes += value.byteLength;
-      lastChunk = Date.now();
-      onProgress?.(bytes);
-    }
-  } finally {
-    clearInterval(watchdog);
+    }, 1000);
+    (async () => {
+      try {
+        for (;;) {
+          let res;
+          try { res = await reader.read(); } catch (e) { if (cut) break; throw e; }
+          if (res.done) break;
+          parts.push(res.value);
+          onChunk?.(res.value);
+          bytes += res.value.byteLength;
+          lastChunk = Date.now();
+          onProgress?.(bytes);
+        }
+        clearInterval(watchdog);
+        if (sabrErr && !cut) throw sabrErr;
+        resolve({ cut, endMs: bufferedMs });
+      } catch (e) { clearInterval(watchdog); reject(e); }
+    })();
+  });
+
+  let startMs = 0;
+  for (let session = 0; session < 40; session++) {
+    let r;
+    try { r = await runSession(startMs); }
+    catch (e) { throw new Error('SABR: ' + (e?.message || e) + ' po ' + Math.round(bytes / 1024) + ' KB (sps ' + sps + ')'); }
+    const total = meta?.durationMs || durationMsTotal;
+    if (!r.cut || (total && r.endMs >= total - 1500)) break;
+    if (r.endMs <= startMs) throw new Error('SABR: stanął po ' + Math.round(bytes / 1024) + ' KB (sps ' + sps + ')');
+    console.info('[SABR] session', session + 1, 'cut at', r.endMs, 'ms, continuing in a new session');
+    startMs = r.endMs;
+    const next = await loadInfo();
+    cfg = { serverAbrStreamingUrl: next.serverAbrStreamingUrl, videoPlaybackUstreamerConfig: next.videoPlaybackUstreamerConfig };
   }
-  if (sabrErr) throw new Error('SABR: ' + (sabrErr.message || sabrErr) + ' po ' + Math.round(bytes / 1024) + ' KB (sps ' + sps + ')');
-  if (Date.now() - lastChunk > 25000) throw new Error('SABR: stanął po ' + Math.round(bytes / 1024) + ' KB (sps ' + sps + ')');
   return { ...meta, parts, bytes };
 }
 
