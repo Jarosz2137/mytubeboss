@@ -973,3 +973,8 @@ h1.big { font-size: 36px; margin: 22px 0 16px; background: linear-gradient(90deg
   .car-ctl { flex-direction: column; gap: 14px; }
   .car-ctl button { width: 76px; height: 76px; } .car-ctl .car-play { width: 100px; height: 100px; }
 }
+
+/* cover never taller than the space it has (tools row took height) */
+.np-art { container-type: size; }
+.np-cover { max-width: 92cqh; max-height: 92cqh; object-fit: cover; aspect-ratio: 1; }
+.np-top { position: relative; z-index: 5; }
