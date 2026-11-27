@@ -24,6 +24,8 @@ jobs:
       - name: Verify background audio
         run: |
           grep -n "AVAudioSession" ios/App/App/AppDelegate.swift
+          grep -n "class GoogleLoginPlugin" ios/App/App/AppDelegate.swift
+          grep -n "MTBBridgeViewController" ios/App/App/Base.lproj/Main.storyboard
           /usr/libexec/PlistBuddy -c "Print :UIBackgroundModes" ios/App/App/Info.plist
       - run: npx cap sync ios
       - name: Build

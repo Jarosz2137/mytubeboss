@@ -9,6 +9,7 @@ import {
 } from './player.js';
 import { setBeat, beatOn, onBeat, setBeatTarget } from './beat.js';
 import { onOta, otaState, applyNow } from './ota.js';
+import { canGoogleLogin, googleSignIn } from './googleLogin.js';
 
 /* ---------------- helpers ---------------- */
 
@@ -377,10 +378,28 @@ function LibraryView({ onOpen, fresh }) {
       try { await yt.signInWithCookie(cookie); setCookie(''); } catch (e) { setErr(e.message); }
       setBusy(false);
     };
+    const google = async () => {
+      setErr(''); setBusy(true);
+      try { await googleSignIn(); } catch (e) { if (!/cancel/i.test(e?.message || '')) setErr(e?.message || String(e)); }
+      setBusy(false);
+    };
     return (
       <div className="view">
         <h1 className="big">Biblioteka</h1>
         <div className="login">
+          {canGoogleLogin() && (
+            <>
+              <p>Zaloguj się swoim kontem Google, a apka pokaże twoje playlisty, polubione i spersonalizowaną główną.</p>
+              <button className="primary google-btn" disabled={busy} onClick={google}>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M21.6 12.2c0-.7-.1-1.4-.2-2H12v3.8h5.4a4.6 4.6 0 0 1-2 3v2.5h3.2c1.9-1.7 3-4.3 3-7.3ZM12 22c2.7 0 5-.9 6.6-2.4l-3.2-2.5c-.9.6-2 1-3.4 1-2.6 0-4.8-1.8-5.6-4.1H3.1v2.6A10 10 0 0 0 12 22Zm-5.6-8a6 6 0 0 1 0-3.9V7.5H3.1a10 10 0 0 0 0 9.1L6.4 14Zm5.6-8c1.5 0 2.8.5 3.8 1.5l2.9-2.9A10 10 0 0 0 3.1 7.5L6.4 10C7.2 7.7 9.4 6 12 6Z" /></svg>
+                {busy ? 'Łączę…' : 'Zaloguj przez Google'}
+              </button>
+              <p className="hint">Logujesz się bezpośrednio w Google. Sesja zostaje tylko w tym telefonie, nikt inny jej nie widzi.</p>
+              {err && <Err text={err} />}
+            </>
+          )}
+          <details className="manual-login" open={!canGoogleLogin()}>
+          <summary>Zaloguj ręcznie (wklejenie cookies)</summary>
           <p>Wklej cookies z zalogowanego YouTube Music, a apka będzie widziała twoje playlisty i polubione.</p>
           <ol className="steps">
             <li>Na kompie otwórz <b>music.youtube.com</b> (zalogowany).</li>
@@ -391,7 +410,8 @@ function LibraryView({ onOpen, fresh }) {
           <textarea className="cookie-box" value={cookie} onChange={(e) => setCookie(e.target.value)} placeholder="SAPISID=...; __Secure-3PAPISID=...; ..." rows={4} />
           <button className="primary" disabled={busy || !cookie.trim()} onClick={submit}>{busy ? 'Łączę…' : 'Zaloguj'}</button>
           <p className="hint">Cookies zostają tylko w telefonie. Kto je ma, ten ma dostęp do konta, więc nie wrzucaj ich nigdzie indziej.</p>
-          {err && <Err text={err} />}
+          {!canGoogleLogin() && err && <Err text={err} />}
+          </details>
         </div>
       </div>
     );
@@ -406,7 +426,10 @@ function LibraryView({ onOpen, fresh }) {
       {lib.loading && (lib.data ? <div className="refreshing" /> : <Loader />)}
       {lib.error && <Err text={lib.error} />}
       {lib.data?.map((sec, i) => <Section key={i} s={sec} onOpen={onOpen} />)}
-      <button className="ghost" onClick={() => yt.signOut()}>Wyloguj</button>
+      <div className="lib-account">
+        {canGoogleLogin() && <button className="ghost" onClick={async () => { await yt.signOut(); try { await googleSignIn(); } catch { /* cancelled */ } }}>Zmień konto</button>}
+        <button className="ghost" onClick={() => yt.signOut()}>Wyloguj</button>
+      </div>
     </div>
   );
 }

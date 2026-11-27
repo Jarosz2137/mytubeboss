@@ -20,7 +20,7 @@ Kolejność dowolna, zapisane po sesji 26.11.2026.
 - Tworzenie nowej playlisty z poziomu apki.
 - Szybkie „♥” na liście utworów (polubienie już działa w playerze).
 
-## 5. Normalniejsze logowanie
+## 5. Normalniejsze logowanie — ZROBIONE na iOS (okienko Google w apce); Android/desktop przy portach
 - Zamiast wklejania cookies: okienko z logowaniem Google w apce (WebView), które samo przechwytuje cookies i je odświeża.
 
 ## 6. Aktualizacje „w locie” zamiast przebudowywania — ZROBIONE (wymaga jednorazowej konfiguracji, README)
@@ -31,6 +31,9 @@ Kolejność dowolna, zapisane po sesji 26.11.2026.
 
 ## 7. Puls okładki do beatu
 - Jest wersja beta (przycisk BEAT w playerze, analiza basu przez Web Audio). Sprawdzić na telefonie, czy nie psuje grania w tle.
+
+## 8. Porty
+- Android (Capacitor, APK do wysłania znajomym), potem Windows i Mac (Electron/Tauri). Logowanie Google na każdej platformie przez jej web view.
 
 ## Znane / odłożone
 - Przeciąganie odtwarzacza w górę z mini-paska nie działa na telefonie (w emulatorze działa). Stuknięcie otwiera — na razie zostaje.

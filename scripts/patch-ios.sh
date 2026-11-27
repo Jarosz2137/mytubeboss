@@ -22,6 +22,17 @@ if ! grep -q "AVAudioSession" "$DELEGATE"; then
   perl -0pi -e 's/import UIKit/import UIKit\nimport AVFoundation/' "$DELEGATE"
   perl -0pi -e 's/(didFinishLaunchingWithOptions[^\{]*\{)/$1\n        try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default)\n        try? AVAudioSession.sharedInstance().setActive(true)/' "$DELEGATE"
 fi
+# 2b) In-app Google login: append the native plugin and use our bridge controller (registers it).
+if ! grep -q "GoogleLoginPlugin" "$DELEGATE"; then
+  sed '/^import /d' native/ios/GoogleLogin.swift > /tmp/gl.swift
+  grep -q "^import WebKit" "$DELEGATE" || perl -0pi -e 's/import UIKit/import UIKit\nimport WebKit/' "$DELEGATE"
+  grep -q "^import Capacitor" "$DELEGATE" || perl -0pi -e 's/import UIKit/import UIKit\nimport Capacitor/' "$DELEGATE"
+  cat /tmp/gl.swift >> "$DELEGATE"
+fi
+STORY="ios/App/App/Base.lproj/Main.storyboard"
+perl -pi -e 's/customClass="CAPBridgeViewController" customModule="Capacitor"/customClass="MTBBridgeViewController" customModule="App" customModuleProvider="target"/' "$STORY"
+grep -q "MTBBridgeViewController" "$STORY" && echo "Google login plugin wired"
+
 # 3) App icon from assets/icon.png (any size, square) -> 1024x1024, no alpha.
 if [ -f assets/icon.png ]; then
   ICONSET="ios/App/App/Assets.xcassets/AppIcon.appiconset"
