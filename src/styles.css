@@ -788,3 +788,15 @@ html, body { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 .np.beat-on .sc-dots { opacity: calc(.3 + var(--high) * .6 + var(--kick) * .3); }
 .np.beat-on .sc-hex polygon, .np.beat-on .sc-prism polygon { stroke-width: calc(.6 + var(--kick) * 1.4); }
 .np-inner { position: relative; z-index: 1; }
+
+/* warp starfield (replaces the faint dots) */
+.sc-stars { position: absolute; left: 50%; top: 38%; width: 0; height: 0; }
+.sc-stars i { position: absolute; left: 0; top: 0; width: var(--s); height: var(--s); border-radius: 50%;
+  background: color-mix(in srgb, var(--c1) 45%, white); box-shadow: 0 0 8px 2px color-mix(in srgb, var(--c1) 80%, transparent);
+  animation: warp var(--d) cubic-bezier(.5,0,1,1) infinite; animation-delay: var(--o); opacity: 0; }
+@keyframes warp {
+  0% { transform: rotate(var(--a)) translateX(4vmax) scale(.3, .3); opacity: 0; }
+  15% { opacity: .9; }
+  100% { transform: rotate(var(--a)) translateX(75vmax) scale(5, 1.2); opacity: 1; }
+}
+.np.beat-on .sc-stars { transform: scale(calc(1 + var(--bass) * .25 + var(--kick) * .2)); opacity: calc(.75 + var(--high) * .25 + var(--kick) * .3); }

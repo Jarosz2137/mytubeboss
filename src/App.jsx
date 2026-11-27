@@ -865,6 +865,11 @@ function Scrubber() {
 
 // Background scene picked per song (same song = same scene), all react to --bass / --mid / --high.
 const SCENES = ['grid', 'rings', 'tunnel', 'hex', 'dots', 'prism'];
+// warp starfield: fixed pseudo-random angles/speeds so it looks the same every render
+const STARS = Array.from({ length: 46 }, (_, i) => {
+  const r = (n) => { const x = Math.sin(i * 12.9898 + n * 78.233) * 43758.5453; return x - Math.floor(x); };
+  return { '--a': `${r(1) * 360}deg`, '--d': `${2.2 + r(2) * 2.6}s`, '--o': `${-r(3) * 4}s`, '--s': `${2 + r(4) * 3}px` };
+});
 function sceneFor(id = '') { let h = 0; for (const ch of id) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return SCENES[h % SCENES.length]; }
 function Scene({ id }) {
   const kind = sceneFor(id);
@@ -880,7 +885,11 @@ function Scene({ id }) {
           ))}
         </svg>
       )}
-      {kind === 'dots' && (<><div className="sc-dots" /><div className="sc-dots far" /></>)}
+      {kind === 'dots' && (
+        <div className="sc-stars">
+          {STARS.map((st, i) => <i key={i} style={st} />)}
+        </div>
+      )}
       {kind === 'prism' && (
         <svg className="sc-prism" viewBox="-100 -100 200 200">
           {[0, 1, 2, 3, 4, 5].map((i) => <polygon key={i} style={{ '--i': i }} points="0,-70 61,35 -61,35" />)}
