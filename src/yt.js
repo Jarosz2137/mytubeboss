@@ -374,6 +374,18 @@ export async function search(q) {
   return sections;
 }
 
+// Best single song match for "title artist" (used by playlist import).
+export async function searchSong(q) {
+  const yt = await getYT();
+  try {
+    const res = await yt.music.search(q, { type: 'song' });
+    const items = toSections(res.contents || []).flatMap((s) => s.items).filter(isPlayable);
+    if (items[0]) return { ...items[0], type: 'song' };
+  } catch { /* fall back to the general search */ }
+  const secs = await search(q);
+  return secs.flatMap((s) => s.items).find(isPlayable) || null;
+}
+
 export async function suggestions(q) {
   const yt = await getYT();
   const res = await yt.music.getSearchSuggestions(q);

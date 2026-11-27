@@ -10,6 +10,8 @@ import {
 import { setBeat, beatOn, onBeat, setBeatTarget, restoreBeat, beatStatus } from './beat.js';
 import { onOta, otaState, applyNow, BUILD, recheck } from './ota.js';
 import { canGoogleLogin, googleSignIn } from './googleLogin.js';
+import { loadLocal, onLocal, localLists, getLocal, createLocal, addToLocal, removeFromLocal, renameLocal, deleteLocal, localCard, isLocalId, onAddSheet, openAddSheet } from './local.js';
+import { readPlaylist, matchTracks, detectSource } from './importer.js';
 
 /* ---------------- helpers ---------------- */
 
@@ -86,6 +88,7 @@ const fmt = (s) => {
 
 function kindOf(item) {
   const id = item.id || '';
+  if (isLocalId(id)) return 'local';
   if (yt.isPlayable(item)) return 'track';
   if (item.type === 'artist' || item.type === 'library_artist' || id.startsWith('UC')) return 'artist';
   if (item.type === 'album' || id.startsWith('MPR')) return 'album';
@@ -123,6 +126,10 @@ const Icon = {
   shuffle: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 7h3.5c2 0 3.2 1 4.3 2.7l2.4 4.6C14.3 16 15.5 17 17.5 17H21M17.5 4 21 7l-3.5 3M3 17h3.5c1.4 0 2.4-.5 3.2-1.3M13.3 8.3C14.1 7.5 15.1 7 16.5 7H21M17.5 14l3.5 3-3.5 3" /></svg>,
   repeat: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 2.5 20.5 6 17 9.5" /><path d="M3.5 11.5V10a4 4 0 0 1 4-4h13M7 21.5 3.5 18 7 14.5" /><path d="M20.5 12.5V14a4 4 0 0 1-4 4h-13" /></svg>,
   plus: <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" /></svg>,
+  minus: <svg viewBox="0 0 24 24"><path d="M5 12h14" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" /></svg>,
+  addList: <svg viewBox="0 0 24 24"><path d="M4 6h11M4 11h11M4 16h7M18 13v8M14 17h8" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>,
+  download: <svg viewBox="0 0 24 24"><path d="M12 4v11m0 0l-4.5-4.5M12 15l4.5-4.5M5 19h14" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" /></svg>,
+  check: <svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" /></svg>,
 };
 
 function Cover({ src, round, className = '' }) {
@@ -144,12 +151,27 @@ function Err({ text }) {
 
 /* ---------------- building blocks ---------------- */
 
-function TrackRow({ t, list, i, onOpen, showCover = true, index }) {
+// Hold a track (or right-click) to add it to a playlist.
+function useHold(onHold) {
+  const tm = useRef(null);
+  const fired = useRef(false);
+  const clear = () => { clearTimeout(tm.current); tm.current = null; };
+  return {
+    onTouchStart: () => { fired.current = false; clear(); tm.current = setTimeout(() => { fired.current = true; tap(ImpactStyle.Medium); onHold(); }, 480); },
+    onTouchMove: clear, onTouchEnd: clear, onTouchCancel: clear,
+    onContextMenu: (e) => { e.preventDefault(); fired.current = true; onHold(); },
+    held: () => { const f = fired.current; fired.current = false; return f; },
+  };
+}
+
+function TrackRow({ t, list, i, onOpen, showCover = true, index, onRemove }) {
   const p = usePlayer();
   const cur = current();
   const active = cur && cur.id === t.id;
+  const hold = useHold(() => openAddSheet(t));
+  const { held, ...holdProps } = hold;
   return (
-    <div className={`row stagger ${active ? 'active' : ''}`} style={{ '--i': Math.min(i, 14) }} onClick={() => { tap(); playList(list, i); }}>
+    <div {...holdProps} className={`row stagger ${active ? 'active' : ''}`} style={{ '--i': Math.min(i, 14) }} onClick={() => { if (held()) return; tap(); playList(list, i); }}>
       {showCover ? <Cover src={t.thumb} className="row-cover" /> : <div className="row-index">{index ?? i + 1}</div>}
       <div className="row-text">
         <div className="row-title"><Marquee text={t.title} /></div>
@@ -162,7 +184,9 @@ function TrackRow({ t, list, i, onOpen, showCover = true, index }) {
         </div>
       </div>
       {active && p.playing ? <div className="eq"><span /><span /><span /></div> : <div className="row-dur">{t.duration ? fmt(t.duration) : ''}</div>}
-      <button className="icon-btn small" onClick={(e) => { e.stopPropagation(); addNext(t); }} aria-label="Zagraj następne">{Icon.plus}</button>
+      {onRemove
+        ? <button className="icon-btn small" onClick={(e) => { e.stopPropagation(); tap(); onRemove(); }} aria-label="Usuń z playlisty">{Icon.minus}</button>
+        : <button className="icon-btn small" onClick={(e) => { e.stopPropagation(); addNext(t); }} aria-label="Zagraj następne">{Icon.plus}</button>}
     </div>
   );
 }
@@ -252,7 +276,7 @@ function QuickPicks({ s }) {
             {pg.map((t, j) => {
               const i = pi * 4 + j;
               return (
-                <div className="qp-row stagger" style={{ '--i': i }} key={t.id + i} onClick={() => { tap(); playList(tracks, i); }}>
+                <div className="qp-row stagger" style={{ '--i': i }} key={t.id + i} onContextMenu={(e) => { e.preventDefault(); openAddSheet(t); }} onClick={() => { tap(); playList(tracks, i); }}>
                   <Cover src={t.thumb} className="qp-cover" />
                   <div className="row-text"><div className="row-title"><Marquee text={t.title} /></div><div className="row-sub"><Marquee text={t.subtitle} /></div></div>
                   <button className="icon-btn small" onClick={(e) => { e.stopPropagation(); tap(); addNext(t); }}>{Icon.plus}</button>
@@ -353,6 +377,114 @@ function SearchView({ onOpen }) {
   );
 }
 
+// Playlists stored on the phone + import from Spotify / Apple Music.
+function LocalShelf({ onOpen }) {
+  const [lists, setLists] = useState(localLists());
+  const [importing, setImporting] = useState(false);
+  useEffect(() => { loadLocal().then(setLists); return onLocal((l) => setLists([...l])); }, []);
+  const create = async () => {
+    const n = prompt('Nazwa nowej playlisty', 'Moja playlista');
+    if (!n) return;
+    const l = await createLocal(n.trim());
+    onOpen(localCard(l));
+  };
+  return (
+    <section className="section local-shelf">
+      <div className="sec-head"><h2>W telefonie</h2></div>
+      <div className="local-actions">
+        <button className="secondary" onClick={() => { tap(); create(); }}>{Icon.plus} Nowa playlista</button>
+        <button className="secondary" onClick={() => { tap(); setImporting(true); }}>{Icon.download} Import ze Spotify / Apple Music</button>
+      </div>
+      {lists.length > 0 && (
+        <div className="local-row">
+          {lists.map((l, i) => <Card key={l.id} item={localCard(l)} onOpen={onOpen} i={i} />)}
+        </div>
+      )}
+      {importing && <ImportSheet onClose={() => setImporting(false)} onDone={(l) => { setImporting(false); onOpen(localCard(l)); }} />}
+    </section>
+  );
+}
+
+function ImportSheet({ onClose, onDone }) {
+  const [link, setLink] = useState('');
+  const [phase, setPhase] = useState('idle'); // idle | reading | matching
+  const [prog, setProg] = useState({ done: 0, total: 0, matched: 0 });
+  const [err, setErr] = useState('');
+  const src = detectSource(link);
+  const go = async () => {
+    setErr(''); setPhase('reading');
+    try {
+      const pl = await readPlaylist(link);
+      setPhase('matching'); setProg({ done: 0, total: pl.tracks.length, matched: 0 });
+      const found = await matchTracks(pl.tracks, (done, total, matched) => setProg({ done, total, matched }));
+      const tracks = found.filter(Boolean);
+      if (!tracks.length) throw new Error('Nie znalazłem żadnego z tych utworów na YouTube.');
+      const l = await createLocal(pl.title, tracks, pl.source);
+      onDone(l);
+    } catch (e) { setErr(e?.message || String(e)); setPhase('idle'); }
+  };
+  return (
+    <div className="sheet-backdrop" onClick={phase === 'idle' ? onClose : undefined}>
+      <div className="sheet" onClick={(e) => e.stopPropagation()}>
+        <div className="np-grabber" />
+        <h3>Import playlisty</h3>
+        <p className="hint">Wklej link do publicznej playlisty albo albumu ze Spotify lub Apple Music. Apka znajdzie te utwory na YouTube i zrobi z nich playlistę w telefonie.</p>
+        <label className="sr-only" htmlFor="imp-link">Link do playlisty</label>
+        <input id="imp-link" className="text-input" value={link} onChange={(e) => setLink(e.target.value)} placeholder="https://open.spotify.com/playlist/…" disabled={phase !== 'idle'} />
+        {link && !src && <p className="hint warn">To nie wygląda na link ze Spotify ani Apple Music.</p>}
+        {phase === 'reading' && <p className="hint">Czytam playlistę…</p>}
+        {phase === 'matching' && (
+          <div className="imp-prog">
+            <div className="imp-bar"><i style={{ transform: `scaleX(${prog.total ? prog.done / prog.total : 0})` }} /></div>
+            <p className="hint">Szukam na YouTube: {prog.done}/{prog.total} · znalezione {prog.matched}</p>
+          </div>
+        )}
+        {err && <Err text={err} />}
+        <div className="sheet-actions">
+          <button className="ghost" onClick={onClose} disabled={phase !== 'idle'}>Anuluj</button>
+          <button className="primary" onClick={go} disabled={!src || phase !== 'idle'}>Importuj</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// "Add to playlist" sheet, opened from anywhere via openAddSheet(track)
+function AddSheet() {
+  const [track, setTrack] = useState(null);
+  const [lists, setLists] = useState(localLists());
+  const [done, setDone] = useState('');
+  useEffect(() => onAddSheet((t) => { setDone(''); setTrack(t); loadLocal().then((l) => setLists([...l])); }), []);
+  useEffect(() => onLocal((l) => setLists([...l])), []);
+  if (!track) return null;
+  const close = () => setTrack(null);
+  const add = async (id, title) => { tap(); await addToLocal(id, track); setDone(title); setTimeout(close, 700); };
+  return (
+    <div className="sheet-backdrop" onClick={close}>
+      <div className="sheet" onClick={(e) => e.stopPropagation()}>
+        <div className="np-grabber" />
+        <div className="add-head">
+          <Cover src={track.thumb} className="row-cover" />
+          <div className="row-text"><div className="row-title"><Marquee text={track.title} /></div><div className="row-sub"><Marquee text={track.subtitle} /></div></div>
+        </div>
+        {done ? <p className="add-done">{Icon.check} Dodano do „{done}”</p> : (
+          <>
+            <button className="add-item new" onClick={async () => { const n = prompt('Nazwa nowej playlisty', 'Moja playlista'); if (!n) return; const l = await createLocal(n.trim()); add(l.id, l.title); }}>{Icon.plus} Nowa playlista</button>
+            {lists.map((l) => (
+              <button key={l.id} className="add-item" onClick={() => add(l.id, l.title)}>
+                <Cover src={l.tracks[0]?.thumb} className="add-cover" />
+                <span><b>{l.title}</b><small>{l.tracks.length} utw.</small></span>
+                {l.tracks.some((x) => x.id === track.id) && <i className="add-has">{Icon.check}</i>}
+              </button>
+            ))}
+            <button className="add-item" onClick={() => { tap(); addNext(track); close(); }}>{Icon.next} Zagraj jako następny</button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function LibraryView({ onOpen, fresh }) {
   const [signed, setSigned] = useState(null);
   const [cookie, setCookie] = useState('');
@@ -413,6 +545,7 @@ function LibraryView({ onOpen, fresh }) {
           {!canGoogleLogin() && err && <Err text={err} />}
           </details>
         </div>
+        <LocalShelf onOpen={onOpen} />
         <VersionLine />
       </div>
     );
@@ -424,6 +557,7 @@ function LibraryView({ onOpen, fresh }) {
       <div className="lib-quick">
         <div className="lib-tile liked" onClick={() => onOpen({ type: 'playlist', id: 'LM', title: 'Polubione' })}>♥<span>Polubione utwory</span></div>
       </div>
+      <LocalShelf onOpen={onOpen} />
       {lib.loading && (lib.data ? <div className="refreshing" /> : <Loader />)}
       {lib.error && <Err text={lib.error} />}
       {lib.data?.map((sec, i) => <Section key={i} s={sec} onOpen={onOpen} />)}
@@ -453,6 +587,37 @@ function ArtistView({ id, onOpen }) {
       </div>
       {a.sections.map((sec, i) => <Section key={i} s={sec} onOpen={onOpen} />)}
       {a.description && <p className="about">{a.description}</p>}
+    </div>
+  );
+}
+
+function DownloadAllButton() { return null; }
+
+function LocalCollection({ id, onOpen, onBack }) {
+  const [, force] = useState(0);
+  useEffect(() => { loadLocal().then(() => force((x) => x + 1)); return onLocal(() => force((x) => x + 1)); }, []);
+  const c = getLocal(id);
+  if (!c) return <div className="view"><Loader /></div>;
+  const total = c.tracks.reduce((a, t) => a + (t.duration || 0), 0);
+  return (
+    <div className="view">
+      <div className="coll-head">
+        <div className="coll-bg" style={{ backgroundImage: c.tracks[0]?.thumb ? `url(${c.tracks[0].thumb})` : undefined }} />
+        <Cover src={c.tracks[0]?.thumb} className="coll-cover" />
+        <h1 onClick={() => { const n = prompt('Nazwa playlisty', c.title); if (n && n.trim()) renameLocal(id, n.trim()); }}>{c.title}</h1>
+        <div className="coll-sub">W telefonie{c.source ? ` · z ${c.source}` : ''}</div>
+        <div className="coll-meta">{c.tracks.length} utworów{total ? ` · ${Math.round(total / 60)} min` : ''}</div>
+        <div className="coll-actions">
+          <button className="primary" disabled={!c.tracks.length} onClick={() => playList(c.tracks, 0)}>{Icon.play} Odtwórz</button>
+          <button className="secondary" disabled={!c.tracks.length} onClick={() => playList(c.tracks.slice().sort(() => Math.random() - 0.5), 0)}>⤮ Losowo</button>
+          <DownloadAllButton tracks={c.tracks} />
+        </div>
+      </div>
+      {!c.tracks.length && <p className="empty-note">Pusta playlista. Przytrzymaj dowolny utwór albo użyj przycisku w playerze, żeby go tu dodać.</p>}
+      <div className="tracklist">
+        {c.tracks.map((t, i) => <TrackRow key={t.id + i} t={t} list={c.tracks} i={i} onOpen={onOpen} onRemove={() => removeFromLocal(id, i)} />)}
+      </div>
+      <button className="ghost danger" onClick={() => { if (confirm(`Usunąć playlistę „${c.title}”?`)) { deleteLocal(id); onBack?.(); } }}>Usuń playlistę</button>
     </div>
   );
 }
@@ -807,6 +972,7 @@ function NowPlaying({ open, onClose, onOpen, sheetRef }) {
               onClick={() => { if (t.artistId) { onClose(); onOpen({ type: 'artist', id: t.artistId }); } }}
             ><Marquee text={t.subtitle} /></div>
           </div>
+          <button className="icon-btn" onClick={() => { tap(); openAddSheet(t); }} aria-label="Dodaj do playlisty">{Icon.addList}</button>
           <button className={`icon-btn like ${liked ? 'on' : ''}`} onClick={() => { tap(ImpactStyle.Medium); toggleLike(t); }}>{liked ? Icon.heart : Icon.heartO}</button>
         </div>
         {p.error && <div className="np-error">{p.error}</div>}
@@ -952,6 +1118,7 @@ export default function App() {
         </div>
         {top?.kind === 'artist' && <ArtistView key={top.id} id={top.id} onOpen={open} />}
         {(top?.kind === 'album' || top?.kind === 'playlist') && <CollectionView key={top.id} id={top.id} kind={top.kind} onOpen={open} />}
+        {top?.kind === 'local' && <LocalCollection key={top.id} id={top.id} onOpen={open} onBack={back} />}
       </main>
       <MiniPlayer hidden={npOpen} onDrag={dragSheet} onDragEnd={endDragSheet} />
       <nav className="tabs">
@@ -960,6 +1127,7 @@ export default function App() {
         <button className={tab === 'library' ? 'on' : ''} onClick={() => switchTab('library')}>{Icon.lib}<span>Biblioteka</span></button>
       </nav>
       <OtaPill />
+      <AddSheet />
       <VideoPop show={!npOpen} onOpen={() => setNpOpen(true)} />
       <NowPlaying sheetRef={sheetRef} open={npOpen} onClose={() => setNpOpen(false)} onOpen={open} />
     </div>

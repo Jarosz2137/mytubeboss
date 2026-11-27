@@ -200,7 +200,15 @@ async function load(startAt = 0) {
         log.push('SABR ' + sc + ': media ' + (el.error?.code ?? 'timeout'));
       } catch (e) {
         if (token !== loadToken) return;
-        if (state.playing) { ctl?.end(); suppressErrors = false; set({ error: 'Utwór urwał się w trakcie pobierania' }); return; }
+        if (state.playing) {
+          // Stream stopped mid-song (anonymous sessions get cut after ~1 min):
+          // continue from the same spot via HLS instead of going silent.
+          ctl?.end();
+          startAt = el.currentTime || startAt;
+          console.warn('[load] SABR cut at', startAt.toFixed(1), 's, switching to HLS');
+          log.push('SABR przerwany');
+          break;
+        }
         log.push(String(e?.message || e).slice(0, 120));
       }
     }
