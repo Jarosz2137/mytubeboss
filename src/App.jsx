@@ -979,17 +979,15 @@ function NpTools() {
   const rate = p.rate || 1;
   const label = rate === 1 ? '1×' : rate < 1 ? `${rate}× slowed` : `${rate}× sped up`;
   const [open, setOpen] = useState(false);
+  useEffect(() => { const f = () => setOpen((x) => !x); window.addEventListener('mtb-tools', f); return () => window.removeEventListener('mtb-tools', f); }, []);
   const nextRate = () => { tap(); const i = RATES.indexOf(rate); setRate(RATES[(i + 1) % RATES.length]); };
-  if (p.mode === 'video') return null;
+  if (p.mode === 'video' || !open) return null;
   return (
     <div className={`np-tools ${open ? 'open' : ''}`}>
-      <button className={`tool-chip more ${rate !== 1 || p.sleep ? 'lit' : ''}`} onClick={() => { tap(); setOpen(!open); }} aria-expanded={open}>
-        Opcje <span className="chev">▾</span>
-      </button>
-      {drop ? <button className="tool-chip drop" onClick={() => { tap(ImpactStyle.Medium); seek(Math.max(0, drop - 1.5)); }}>⚡ Drop · {fmt(drop)}</button>
-        : <span className="tool-chip ghosty">⚡ szukam dropu…</span>}
-      {open && (
+      {(
         <div className="np-tools-more">
+          {drop ? <button className="tool-chip drop" onClick={() => { tap(ImpactStyle.Medium); seek(Math.max(0, drop - 1.5)); }}>⚡ Drop · {fmt(drop)}</button>
+            : <span className="tool-chip ghosty">⚡ szukam dropu…</span>}
           <button className={`tool-chip ${rate !== 1 ? 'lit' : ''}`} onClick={nextRate} onContextMenu={(e) => { e.preventDefault(); setRate(1); }}>{label}</button>
           <SleepChip />
           <button className="tool-chip" onClick={() => { tap(); window.dispatchEvent(new Event('mtb-car')); }}>🚗 Auto</button>
@@ -1325,6 +1323,9 @@ function NowPlaying({ open, onClose, onOpen, sheetRef }) {
               onClick={() => { if (t.artistId) { onClose(); onOpen({ type: 'artist', id: t.artistId }); } }}
             ><Marquee text={t.subtitle} /></div>
           </div>
+          <button className={`icon-btn more-btn ${(p.rate || 1) !== 1 || p.sleep ? 'dot' : ''}`} onClick={() => { tap(); window.dispatchEvent(new Event('mtb-tools')); }} aria-label="Więcej opcji">
+            <svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="2" fill="currentColor" /><circle cx="12" cy="12" r="2" fill="currentColor" /><circle cx="19" cy="12" r="2" fill="currentColor" /></svg>
+          </button>
           <button className="icon-btn" onClick={() => { tap(); openAddSheet(t); }} aria-label="Dodaj do playlisty">{Icon.addList}</button>
           <button className={`icon-btn like ${liked ? 'on' : ''}`} onClick={() => { tap(ImpactStyle.Medium); toggleLike(t); }}>{liked ? Icon.heart : Icon.heartO}</button>
         </div>
