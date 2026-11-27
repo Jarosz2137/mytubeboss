@@ -70,7 +70,8 @@ class GoogleLoginViewController: UIViewController, WKNavigationDelegate {
         web.navigationDelegate = self
         view.addSubview(web)
         let url = URL(string: "https://accounts.google.com/ServiceLogin?service=youtube&passive=true&continue=https%3A%2F%2Fmusic.youtube.com%2F")!
-        web.load(URLRequest(url: url))
+        // Skip the EU cookie-consent page (it never finished loading here and blocked the redirect).
+        setConsentCookies { self.web.load(URLRequest(url: url)) }
         // Backup check: some redirects finish client-side without a didFinish.
         timer = Timer.scheduledTimer(withTimeInterval: 1.5, repeats: true) { [weak self] _ in self?.check() }
     }
@@ -78,9 +79,31 @@ class GoogleLoginViewController: UIViewController, WKNavigationDelegate {
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) { check() }
 
     private var sentToYouTube = false
+    private var consentRetries = 0
+
+    private func setConsentCookies(_ then: @escaping () -> Void) {
+        let store = web.configuration.websiteDataStore.httpCookieStore
+        let expires = Date().addingTimeInterval(60 * 60 * 24 * 365)
+        var cookies: [HTTPCookie] = []
+        for domain in [".youtube.com", ".google.com"] {
+            for (name, value) in [("SOCS", "CAI"), ("CONSENT", "PENDING+987")] {
+                if let c = HTTPCookie(properties: [.domain: domain, .path: "/", .name: name, .value: value, .secure: "TRUE", .expires: expires]) { cookies.append(c) }
+            }
+        }
+        let group = DispatchGroup()
+        for c in cookies { group.enter(); store.setCookie(c) { group.leave() } }
+        group.notify(queue: .main, execute: then)
+    }
 
     private func check() {
         guard !finished, let url = web.url, let host = url.host else { return }
+        if host == "consent.youtube.com" || host == "consent.google.com" {
+            // Consent page slipped through: set the cookie again and go straight to YouTube Music.
+            guard consentRetries < 3 else { return }
+            consentRetries += 1
+            setConsentCookies { self.web.load(URLRequest(url: URL(string: "https://music.youtube.com/")!)) }
+            return
+        }
         if !host.hasSuffix("youtube.com") {
             // Signed in, but Google parked us on one of its own pages (security checkup,
             // account page, …) instead of following `continue`: go to YouTube Music ourselves.
@@ -90,7 +113,7 @@ class GoogleLoginViewController: UIViewController, WKNavigationDelegate {
                 let signedIn = cookies.contains { $0.domain.hasSuffix("google.com") && ($0.name == "SAPISID" || $0.name == "SID") }
                 guard signedIn, !self.sentToYouTube else { return }
                 self.sentToYouTube = true
-                self.web.load(URLRequest(url: URL(string: "https://music.youtube.com/")!))
+                self.setConsentCookies { self.web.load(URLRequest(url: URL(string: "https://music.youtube.com/")!)) }
             }
             return
         }
