@@ -139,7 +139,8 @@ function loop(now = 0) {
   }
   frameSubs.forEach((f) => f(L, now));
   // Adaptive quality: if frames keep coming late, drop the heavy effects (weaker / hot phones).
-  if (fk > 2.7 && !document.hidden) slow++; // <~22 fps; a steady 30 fps cap from iOS (heat / low power) is fine else if (slow > 0) slow -= 0.25;
+  // <~22 fps counts as slow; a steady 30 fps cap from iOS (heat / low power) is fine
+  if (fk > 2.7 && !document.hidden) slow++; else if (slow > 0) slow -= 0.25;
   const lite = document.documentElement.classList.contains('lite');
   if (slow > 90 && !lite) { document.documentElement.classList.add('lite'); console.log('[perf] lite mode on'); good = 0; }
   // ...and back to full effects after ~20 s of smooth frames
