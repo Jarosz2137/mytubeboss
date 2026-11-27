@@ -727,3 +727,45 @@ html, body { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 .np-strip .np-cover { position: relative; }
 .np.beat-on .np-strip .np-cover { filter: brightness(calc(1 + var(--high) * .12)) saturate(calc(1 + var(--mid) * .2)); }
 .np.beat-on .np-cover.big { box-shadow: 0 40px 90px -10px rgba(0,0,0,.7), 0 0 60px -6px var(--c1), 0 0 140px -20px var(--c3); }
+
+/* ===== per-song background scenes (geometric), all audio-reactive ===== */
+.np-scene { animation: sceneIn .8s ease both; }
+@keyframes sceneIn { from { opacity: 0; } to { opacity: 1; } }
+.np:not(.is-playing) .np-scene * { animation-play-state: paused !important; }
+.np-scene .sc-rings, .np-scene .sc-tunnel { position: absolute; left: 50%; top: 38%; width: 0; height: 0; }
+
+/* rings: circles expanding outward from behind the cover */
+.sc-rings i { position: absolute; left: 0; top: 0; width: 140vmax; aspect-ratio: 1; border-radius: 50%;
+  border: 1.5px solid color-mix(in srgb, var(--c1) 70%, white); opacity: 0; transform: translate(-50%, -50%) scale(.05);
+  animation: ringOut 6s linear infinite; animation-delay: calc(var(--i) * -1s); }
+@keyframes ringOut { 0% { transform: translate(-50%, -50%) scale(.05); opacity: 0; } 15% { opacity: .5; } 100% { transform: translate(-50%, -50%) scale(1); opacity: 0; } }
+.np.beat-on .sc-rings { transform: scale(calc(1 + var(--bass) * .12)); }
+
+/* tunnel: rotating squares flying toward you */
+.sc-tunnel i { position: absolute; left: 0; top: 0; width: 120vmax; aspect-ratio: 1; border: 1.5px solid color-mix(in srgb, var(--c2) 65%, white);
+  border-radius: 8%; opacity: 0; animation: tunnel 8s linear infinite; animation-delay: calc(var(--i) * -1s); }
+@keyframes tunnel { 0% { transform: translate(-50%, -50%) scale(.02) rotate(0deg); opacity: 0; } 20% { opacity: .45; } 100% { transform: translate(-50%, -50%) scale(1.1) rotate(90deg); opacity: 0; } }
+.np.beat-on .sc-tunnel { transform: rotate(calc(var(--mid) * 12deg)); }
+
+/* hex: nested hexagons slowly counter-rotating */
+.sc-hex, .sc-prism { position: absolute; left: 50%; top: 38%; width: 170vmax; height: 170vmax; transform: translate(-50%, -50%); overflow: visible; }
+.sc-hex polygon, .sc-prism polygon { fill: none; stroke: color-mix(in srgb, var(--c1) 70%, white); stroke-width: .6; opacity: .35;
+  transform-origin: 0 0; transform-box: view-box; }
+.sc-hex polygon { transform: scale(calc(.25 + var(--i) * .22)); animation: hexSpin calc(30s + var(--i) * 6s) linear infinite; }
+.sc-hex polygon:nth-child(even) { animation-direction: reverse; }
+@keyframes hexSpin { to { rotate: 360deg; } }
+.np.beat-on .sc-hex { transform: translate(-50%, -50%) scale(calc(1 + var(--bass) * .08)); }
+
+/* prism: triangles breathing and turning */
+.sc-prism polygon { stroke: color-mix(in srgb, var(--c3) 65%, white); transform: rotate(calc(var(--i) * 20deg)) scale(calc(.3 + var(--i) * .2));
+  animation: prism 14s ease-in-out infinite; animation-delay: calc(var(--i) * -1.4s); }
+@keyframes prism { 50% { opacity: .55; rotate: 60deg; } }
+.np.beat-on .sc-prism { transform: translate(-50%, -50%) scale(calc(1 + var(--mid) * .1)); }
+
+/* dots: two drifting dot fields (parallax) */
+.sc-dots { position: absolute; inset: -20%; opacity: .35;
+  background-image: radial-gradient(circle, color-mix(in srgb, var(--c1) 70%, white) 1.2px, transparent 1.6px); background-size: 26px 26px;
+  animation: dotsDrift 20s linear infinite; mask: radial-gradient(circle at 50% 40%, #000 0%, transparent 75%); -webkit-mask: radial-gradient(circle at 50% 40%, #000 0%, transparent 75%); }
+.sc-dots.far { background-size: 14px 14px; opacity: .2; animation-duration: 40s; animation-direction: reverse; }
+@keyframes dotsDrift { to { transform: translate(26px, 52px); } }
+.np.beat-on .sc-dots { opacity: calc(.25 + var(--high) * .4); }

@@ -863,6 +863,33 @@ function Scrubber() {
   );
 }
 
+// Background scene picked per song (same song = same scene), all react to --bass / --mid / --high.
+const SCENES = ['grid', 'rings', 'tunnel', 'hex', 'dots', 'prism'];
+function sceneFor(id = '') { let h = 0; for (const ch of id) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return SCENES[h % SCENES.length]; }
+function Scene({ id }) {
+  const kind = sceneFor(id);
+  return (
+    <div className={`np-scene sc-${kind}`} key={kind} aria-hidden="true">
+      {kind === 'grid' && (<><div className="np-sun" /><div className="np-grid" /></>)}
+      {kind === 'rings' && (<div className="sc-rings">{[0, 1, 2, 3, 4, 5].map((i) => <i key={i} style={{ '--i': i }} />)}</div>)}
+      {kind === 'tunnel' && (<div className="sc-tunnel">{[0, 1, 2, 3, 4, 5, 6, 7].map((i) => <i key={i} style={{ '--i': i }} />)}</div>)}
+      {kind === 'hex' && (
+        <svg className="sc-hex" viewBox="-100 -100 200 200">
+          {[0, 1, 2, 3, 4].map((i) => (
+            <polygon key={i} style={{ '--i': i }} points="0,-80 69,-40 69,40 0,80 -69,40 -69,-40" />
+          ))}
+        </svg>
+      )}
+      {kind === 'dots' && (<><div className="sc-dots" /><div className="sc-dots far" /></>)}
+      {kind === 'prism' && (
+        <svg className="sc-prism" viewBox="-100 -100 200 200">
+          {[0, 1, 2, 3, 4, 5].map((i) => <polygon key={i} style={{ '--i': i }} points="0,-70 61,35 -61,35" />)}
+        </svg>
+      )}
+    </div>
+  );
+}
+
 function NowPlaying({ open, onClose, onOpen, sheetRef }) {
   const p = usePlayer();
   const t = current();
@@ -977,10 +1004,7 @@ function NowPlaying({ open, onClose, onOpen, sheetRef }) {
       <div className="np-bg" key={'bg' + t.id} style={{ backgroundImage: t.thumb ? `url(${t.thumb})` : undefined }} />
       <div className="np-blobs"><i className="b1" /><i className="b2" /><i className="b3" /></div>
       <div className="np-grain" />
-      <div className="np-scene" aria-hidden="true">
-        <div className="np-sun" />
-        <div className="np-grid" />
-      </div>
+      <Scene id={t.id} />
       <div className="np-inner">
         <div className="np-grabber" />
         <div className="np-brand">
