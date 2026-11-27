@@ -782,7 +782,7 @@ html, body { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 .np.beat-on .np-art::before { opacity: calc(var(--high) * .9 + var(--kick) * .6); transform: translate(-50%, -50%) scale(calc(.9 + var(--bass) * .35 + var(--kick) * .2)); }
 .np.beat-on .np-strip .np-cover { filter: brightness(calc(1 + var(--high) * .2 + var(--kick) * .12)) saturate(calc(1 + var(--mid) * .35)); }
 .np.beat-on .sc-rings { transform: scale(calc(1 + var(--bass) * .2 + var(--kick) * .15)); }
-.np.beat-on .sc-tunnel { transform: rotate(calc(var(--mid) * 20deg)) scale(calc(1 + var(--kick) * .12)); }
+.np.beat-on .sc-tunnel { transform: rotate(calc(var(--mid) * 7deg)) scale(calc(1 + var(--kick) * .06)); will-change: transform; }
 .np.beat-on .sc-hex { transform: translate(-50%, -50%) scale(calc(1 + var(--bass) * .14 + var(--kick) * .1)); }
 .np.beat-on .sc-prism { transform: translate(-50%, -50%) scale(calc(1 + var(--mid) * .18 + var(--kick) * .1)); }
 .np.beat-on .sc-dots { opacity: calc(.3 + var(--high) * .6 + var(--kick) * .3); }
@@ -1038,8 +1038,7 @@ h1.big { font-size: 36px; margin: 22px 0 16px; background: linear-gradient(90deg
 .sc-tunnel2 rect { fill: none; stroke: color-mix(in srgb, var(--c2) 65%, white); stroke-width: 1.5px; vector-effect: non-scaling-stroke;
   transform-box: view-box; transform-origin: 0 0; opacity: 0; animation: tunnel2 8s linear infinite; animation-delay: calc(var(--i) * -1s); }
 @keyframes tunnel2 { 0% { transform: scale(.02) rotate(0deg); opacity: 0; } 20% { opacity: .45; } 100% { transform: scale(1.1) rotate(90deg); opacity: 0; } }
-.np.beat-on .sc-tunnel2 { transform: translate(-50%, -50%) rotate(calc(var(--mid) * 20deg)) scale(calc(1 + var(--kick) * .12)); }
-.np.beat-on .sc-tunnel2 rect { stroke-width: calc(1.5px + var(--kick) * 2px); }
+.np.beat-on .sc-tunnel2 { transform: translate(-50%, -50%) rotate(calc(var(--mid) * 7deg)) scale(calc(1 + var(--kick) * .06)); will-change: transform; }
 
 /* contrasting accent: the cover colour's opposite hue, bright */
 .np { --cx: hsl(from var(--c1, #ff5e8a) calc(h + 180) 95% 62%); --cx2: hsl(from var(--c1, #ff5e8a) calc(h + 150) 95% 60%); }
