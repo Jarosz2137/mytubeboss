@@ -624,7 +624,9 @@ function NowPlaying({ open, onClose, onOpen, sheetRef }) {
     if (v.webkitEnterFullscreen) v.webkitEnterFullscreen(); // iOS native player, rotates to landscape
     else v.requestFullscreen?.();
   };
-  useEffect(() => onBeat(setBeatState), []);
+  const [, bumpBeat] = useState(0);
+  useEffect(() => onBeat((v) => { setBeatState(v); bumpBeat((x) => x + 1); }), []);
+  useEffect(() => { restoreBeat(); }, []);
   useEffect(() => { setBeatTarget(sheet.current); }, [t?.id]);
 
   // Move the single <video> engine into view when in video mode.
@@ -730,6 +732,7 @@ function NowPlaying({ open, onClose, onOpen, sheetRef }) {
           <span className="boss-badge">👑 BOSS MODE · 0 reklam</span>
           <button className={`beat-btn ${beat ? 'on' : ''}`} onClick={() => { tap(); setBeat(!beat); }} aria-label="Puls do beatu">BEAT</button>
         </div>
+        {beat && beatStatus && <div className="beat-note">BEAT: {beatStatus}</div>}
         <div className="np-top">
           <button className="icon-btn" onClick={onClose}>{Icon.down}</button>
           <div className={`seg ${p.mode}`}>
