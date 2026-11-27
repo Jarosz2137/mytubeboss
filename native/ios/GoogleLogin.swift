@@ -63,12 +63,35 @@ class GoogleLoginViewController: UIViewController, WKNavigationDelegate {
         navigationItem.leftBarButtonItem = UIBarButtonItem(barButtonSystemItem: .cancel, target: self, action: #selector(cancel))
         let cfg = WKWebViewConfiguration()
         cfg.websiteDataStore = .nonPersistent() // fresh every time -> easy account switching
+        cfg.mediaTypesRequiringUserActionForPlayback = .all // nothing (no video, no ad) plays by itself
         web = WKWebView(frame: view.bounds, configuration: cfg)
         web.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         // Google refuses sign-in inside "embedded" browsers; present as regular mobile Safari.
         web.customUserAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1"
         web.navigationDelegate = self
         view.addSubview(web)
+        // Cover shown once Google sign-in is done, so YouTube's own site never appears.
+        cover.frame = view.bounds
+        cover.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        cover.backgroundColor = UIColor(red: 0.04, green: 0.04, blue: 0.05, alpha: 1)
+        cover.isHidden = true
+        let spinner = UIActivityIndicatorView(style: .large)
+        spinner.color = .white
+        spinner.startAnimating()
+        spinner.translatesAutoresizingMaskIntoConstraints = false
+        let label = UILabel()
+        label.text = "Łączę z YouTube…"
+        label.textColor = .white
+        label.font = .systemFont(ofSize: 17, weight: .semibold)
+        label.translatesAutoresizingMaskIntoConstraints = false
+        cover.addSubview(spinner); cover.addSubview(label)
+        NSLayoutConstraint.activate([
+            spinner.centerXAnchor.constraint(equalTo: cover.centerXAnchor),
+            spinner.centerYAnchor.constraint(equalTo: cover.centerYAnchor, constant: -16),
+            label.centerXAnchor.constraint(equalTo: cover.centerXAnchor),
+            label.topAnchor.constraint(equalTo: spinner.bottomAnchor, constant: 14),
+        ])
+        view.addSubview(cover)
         let url = URL(string: "https://accounts.google.com/ServiceLogin?service=youtube&passive=true&continue=https%3A%2F%2Fmusic.youtube.com%2F")!
         // Skip the EU cookie-consent page (it never finished loading here and blocked the redirect).
         setConsentCookies { self.web.load(URLRequest(url: url)) }
@@ -79,6 +102,10 @@ class GoogleLoginViewController: UIViewController, WKNavigationDelegate {
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) { check() }
 
     private var sentToYouTube = false
+    private let cover = UIView()
+    private var handoffTries = 0
+    // Google's passive sign-in for YouTube: copies the Google session to youtube.com (SetSID).
+    private let youtubeHandoff = URL(string: "https://accounts.google.com/ServiceLogin?service=youtube&passive=true&uilel=3&continue=https%3A%2F%2Fwww.youtube.com%2Fsignin%3Faction_handle_signin%3Dtrue%26next%3Dhttps%253A%252F%252Fmusic.youtube.com%252F")!
     private var consentRetries = 0
 
     private func setConsentCookies(_ then: @escaping () -> Void) {
@@ -101,7 +128,8 @@ class GoogleLoginViewController: UIViewController, WKNavigationDelegate {
             // Consent page slipped through: set the cookie again and go straight to YouTube Music.
             guard consentRetries < 3 else { return }
             consentRetries += 1
-            setConsentCookies { self.web.load(URLRequest(url: URL(string: "https://music.youtube.com/")!)) }
+            cover.isHidden = false
+            setConsentCookies { self.web.load(URLRequest(url: self.youtubeHandoff)) }
             return
         }
         if !host.hasSuffix("youtube.com") {
@@ -113,13 +141,24 @@ class GoogleLoginViewController: UIViewController, WKNavigationDelegate {
                 let signedIn = cookies.contains { $0.domain.hasSuffix("google.com") && ($0.name == "SAPISID" || $0.name == "SID") }
                 guard signedIn, !self.sentToYouTube else { return }
                 self.sentToYouTube = true
-                self.setConsentCookies { self.web.load(URLRequest(url: URL(string: "https://music.youtube.com/")!)) }
+                self.cover.isHidden = false
+                self.setConsentCookies { self.web.load(URLRequest(url: self.youtubeHandoff)) }
             }
             return
         }
         web.configuration.websiteDataStore.httpCookieStore.getAllCookies { cookies in
             let yt = cookies.filter { $0.domain.hasSuffix("youtube.com") }
-            guard !self.finished, yt.contains(where: { $0.name == "SAPISID" }) else { return }
+            guard !self.finished else { return }
+            if !yt.contains(where: { $0.name == "SAPISID" }) {
+                // On YouTube but not signed in there yet: if Google is signed in, run the handoff.
+                let googleIn = cookies.contains { $0.domain.hasSuffix("google.com") && ($0.name == "SAPISID" || $0.name == "SID") }
+                if googleIn && self.handoffTries < 2 && !self.web.isLoading {
+                    self.handoffTries += 1
+                    self.cover.isHidden = false
+                    self.web.load(URLRequest(url: self.youtubeHandoff))
+                }
+                return
+            }
             self.finished = true
             // one value per name, preferring the shared ".youtube.com" domain
             var byName: [String: HTTPCookie] = [:]
