@@ -857,7 +857,7 @@ function VersionLine() {
   const label = { idle: '', checking: 'sprawdzam…', latest: 'aktualna', downloading: `pobieram ${o.version}…`, ready: 'nowa wersja gotowa', error: `błąd: ${o.message || ''}` }[o.status] || o.status;
   return (
     <button className="version-line" onClick={() => (o.status === 'ready' ? applyNow() : recheck())}>
-      Wersja {BUILD || 'dev'}{o.remote ? ` · serwer ${o.remote}` : ''}{label ? ` · ${label}` : ''}
+      Wersja bossa {BUILD || 'dev'}{o.remote ? ` · serwer ${o.remote}` : ''}{label ? ` · ${label}` : ''}
     </button>
   );
 }
