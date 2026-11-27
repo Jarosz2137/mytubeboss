@@ -716,10 +716,13 @@ export async function sabrAudioChunks(id, { onMeta, onChunk, onProgress } = {}, 
       if ((pending && idle > 5000) || idle > 25000) {
         cut = true;
         clearInterval(watchdog);
+        // Take the snapshot synchronously: sabr.snapshot() waits for idle, which never comes
+        // while it keeps retrying the walled request.
         try {
-          snap = await Promise.race([sabr.abort({ snapshot: true }), new Promise((r) => setTimeout(() => r(null), 3000))]);
-        } catch { snap = null; }
-        if (!snap) sabr.abort().catch(() => {});
+          const tracks = sabr.trackCollection?.snapshot?.() || [];
+          if (tracks.length) snap = { playerTimeMs: bufferedMs, tracks };
+        } catch (e) { console.warn('[SABR] snapshot failed', e?.message); }
+        sabr.abort().catch(() => {});
         reader.cancel(new Error('stall')).catch(() => {});
       }
     }, 1000);
