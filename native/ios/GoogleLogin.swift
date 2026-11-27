@@ -8,6 +8,12 @@ import Capacitor
 class MTBBridgeViewController: CAPBridgeViewController {
     override func capacitorDidLoad() {
         bridge?.registerPluginInstance(GoogleLoginPlugin())
+        // Music video -> Picture-in-Picture automatically when the app is minimised.
+        // Must happen just before the app leaves the foreground; JS run from here counts as a
+        // user gesture in WKWebView, so the page is allowed to start PiP.
+        NotificationCenter.default.addObserver(forName: UIApplication.willResignActiveNotification, object: nil, queue: .main) { [weak self] _ in
+            self?.webView?.evaluateJavaScript("window.__mtbAutoPip && window.__mtbAutoPip()", completionHandler: nil)
+        }
     }
 }
 

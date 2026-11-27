@@ -342,6 +342,10 @@ export function togglePip() {
     }
   } catch (e) { console.warn('[pip]', e); }
 }
+// Called by the native side right before the app is minimised.
+window.__mtbAutoPip = () => {
+  if (state.mode === 'video' && state.playing && !inPip()) togglePip();
+};
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden || state.mode !== 'video' || !state.playing) return;
   userPaused = false;
