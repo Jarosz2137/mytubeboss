@@ -1162,7 +1162,7 @@ function NowPlaying({ open, onClose, onOpen, sheetRef }) {
     if (s0.axis === 'x' && s0.onArt) {
       s0.dx = dx;
       const strip = sheet.current.querySelector('.np-strip, .np-video');
-      if (strip) { strip.style.transition = 'none'; strip.style.transform = `translate3d(${dx}px, 0, 0)`; }
+      if (strip) { strip.style.transition = 'none'; strip.style.transform = `translate3d(${dx}px, 0, 0)`; if (strip.classList.contains('np-strip')) setProg(strip, dx, false); }
     }
   };
   const onEnd = (e) => {
@@ -1186,6 +1186,7 @@ function NowPlaying({ open, onClose, onOpen, sheetRef }) {
         const step = (strip.parentElement?.clientWidth || window.innerWidth) * 0.51;
         strip.style.transition = 'transform .24s cubic-bezier(.25,.8,.3,1)';
         strip.style.transform = `translate3d(${dx < 0 ? -step : step}px, 0, 0)`;
+        if (strip.classList.contains('np-strip')) setProg(strip, dx < 0 ? -step : step, true);
         let fired = false;
         const go = () => { if (fired) return; fired = true; strip.removeEventListener('transitionend', go); setSlide('none'); dx < 0 ? next() : prev(); };
         strip.addEventListener('transitionend', go);
@@ -1193,14 +1194,32 @@ function NowPlaying({ open, onClose, onOpen, sheetRef }) {
       } else if (strip) {
         strip.style.transition = 'transform .35s cubic-bezier(.2,1.3,.3,1)';
         strip.style.transform = '';
+        if (strip.classList.contains('np-strip')) setProg(strip, 0, true);
       }
     }
+  };
+
+  // Swipe progress -> centre cover shrinks, incoming side cover grows into the centre
+  const setProg = (strip, dx, animate) => {
+    const step = (strip.parentElement?.clientWidth || window.innerWidth) * 0.51;
+    const k = Math.min(1, Math.abs(dx) / step);
+    strip.classList.toggle('dragging', !animate);
+    strip.style.setProperty('--sp', k.toFixed(3));
+    strip.style.setProperty('--pl', dx > 0 ? k.toFixed(3) : '0');
+    strip.style.setProperty('--pr', dx < 0 ? k.toFixed(3) : '0');
+    strip.dataset.dir = dx < 0 ? 'r' : dx > 0 ? 'l' : '';
   };
 
   // New track is centred now -> snap the strip back with no animation, before paint.
   useLayoutEffect(() => {
     const strip = sheet.current?.querySelector('.np-strip');
-    if (strip) { strip.style.transition = 'none'; strip.style.transform = ''; }
+    if (strip) {
+      strip.style.transition = 'none'; strip.style.transform = '';
+      strip.classList.add('dragging');
+      ['--sp', '--pl', '--pr'].forEach((v) => strip.style.setProperty(v, '0'));
+      strip.dataset.dir = '';
+      requestAnimationFrame(() => requestAnimationFrame(() => strip.classList.remove('dragging')));
+    }
   }, [t?.id]);
 
   if (!t) return null;
