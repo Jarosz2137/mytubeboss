@@ -146,6 +146,26 @@ function Cover({ src, round, className = '' }) {
   );
 }
 
+// Blurred cover backdrop without a blur filter: the cover drawn into a tiny 24 px canvas and stretched
+// full-screen (the GPU's smooth upscale IS the blur). A 70 px CSS blur on a screen-and-a-half layer
+// cost ~100 MB of GPU memory on every track change - the likely reason iOS killed the app when skipping.
+function BgBlur({ src }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    const c = ref.current; if (!c || !src) return;
+    const img = new Image();
+    img.referrerPolicy = 'no-referrer';
+    img.onload = () => {
+      const g = c.getContext('2d'); if (!g) return;
+      try { g.filter = 'saturate(1.8) brightness(.6)'; } catch { /* older iOS: plain */ }
+      g.drawImage(img, 0, 0, c.width, c.height);
+    };
+    img.src = src;
+    return () => { img.onload = null; };
+  }, [src]);
+  return <canvas ref={ref} className="np-bg np-bg-c" width="24" height="24" aria-hidden="true" />;
+}
+
 function Loader() {
   return <div className="loader"><span /><span /><span /></div>;
 }
@@ -1240,7 +1260,7 @@ function NowPlaying({ open, onClose, onOpen, sheetRef }) {
       className={`np mode-${p.mode} ${open ? 'open' : ''} ${p.playing ? 'is-playing' : ''} ${beat ? 'beat-on' : ''}`}
       onTouchStart={onStart} onTouchMove={onMove} onTouchEnd={onEnd} onTouchCancel={onEnd}
     >
-      <div className="np-bg" key={'bg' + t.id} style={{ backgroundImage: t.thumb ? `url(${t.thumb})` : undefined }} />
+      <BgBlur key={'bg' + t.id} src={t.thumb} />
       <div className="np-blobs"><i className="b1" /><i className="b2" /><i className="b3" /></div>
       <div className="np-grain" />
       <Scene id={t.id} />
