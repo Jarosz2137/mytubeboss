@@ -25,39 +25,34 @@ async function analyse(id, parts, mime) {
     const OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
     const bytes = await new Blob(parts, { type: (mime || '').split(';')[0] }).arrayBuffer();
     const decoded = await new OAC(1, RATE, RATE).decodeAudioData(bytes);
-    // one offline render: kick low-pass on channel 0, band-passes for the visualizer on 1..N
+    // Render one filter at a time (mono) so memory stays small even for long songs.
     const B = BAND_HZ.length;
-    const off = new OAC(B + 1, decoded.length, RATE);
-    const src = off.createBufferSource();
-    src.buffer = decoded;
-    const merger = off.createChannelMerger(B + 1);
-    const lp = off.createBiquadFilter();
-    lp.type = 'lowpass'; lp.frequency.value = 150;
-    src.connect(lp); lp.connect(merger, 0, 0);
-    BAND_HZ.forEach((hz, i) => {
-      const bp = off.createBiquadFilter();
-      bp.type = hz < 100 ? 'lowpass' : hz > 3500 ? 'highpass' : 'bandpass';
-      bp.frequency.value = hz; bp.Q.value = 1.1;
-      src.connect(bp); bp.connect(merger, 0, i + 1);
-    });
-    merger.connect(off.destination); src.start();
-    const rendered = await off.startRendering();
-    const data = rendered.getChannelData(0);
+    const renderFilter = async (type, hz, q) => {
+      const off = new OAC(1, decoded.length, RATE);
+      const src = off.createBufferSource();
+      src.buffer = decoded;
+      const f = off.createBiquadFilter();
+      f.type = type; f.frequency.value = hz; if (q) f.Q.value = q;
+      src.connect(f); f.connect(off.destination); src.start();
+      return (await off.startRendering()).getChannelData(0);
+    };
     const rms = (ch) => {
       const n = Math.floor(ch.length / FRAME), out = new Float32Array(n);
       for (let i = 0; i < n; i++) { let s2 = 0; for (let j = i * FRAME, e = j + FRAME; j < e; j++) s2 += ch[j] * ch[j]; out[i] = Math.sqrt(s2 / FRAME); }
       return out;
     };
+    const data = await renderFilter('lowpass', 150);
     const bands = [];
     for (let b = 0; b < B; b++) {
-      const e = rms(rendered.getChannelData(b + 1));
+      const hz = BAND_HZ[b];
+      const e = rms(await renderFilter(hz < 100 ? 'lowpass' : hz > 3500 ? 'highpass' : 'bandpass', hz, 1.1));
       const sorted = Array.from(e).sort((x, y) => x - y);
       const p = sorted[Math.floor(sorted.length * 0.985)] || 1e-6;
       for (let i = 0; i < e.length; i++) e[i] = Math.min(1, Math.pow(e[i] / p, 0.8));
       bands.push(e);
     }
     spectra.set(id, bands);
-    while (spectra.size > 6) spectra.delete(spectra.keys().next().value);
+    while (spectra.size > 3) spectra.delete(spectra.keys().next().value);
     const n = Math.floor(data.length / FRAME);
     const energy = new Float32Array(n);
     for (let i = 0; i < n; i++) {
@@ -73,7 +68,7 @@ async function analyse(id, parts, mime) {
     const p = sorted[Math.floor(sorted.length * 0.97)] || 1e-6;
     for (let i = 0; i < n; i++) env[i] = Math.min(1, env[i] / p);
     envs.set(id, env);
-    while (envs.size > 6) envs.delete(envs.keys().next().value);
+    while (envs.size > 3) envs.delete(envs.keys().next().value);
     console.info('[beat] analysed', id, n, 'frames');
     if (current()?.id === id) status('');
   } catch (e) {
@@ -87,8 +82,8 @@ const pending = new Map();
 window.addEventListener('mtb-audio', (e) => {
   const { id, parts, mime } = e.detail || {};
   pending.set(id, { parts, mime });
-  while (pending.size > 4) pending.delete(pending.keys().next().value);
-  analyse(id, parts, mime);
+  while (pending.size > 3) pending.delete(pending.keys().next().value);
+  if (current()?.id === id) analyse(id, parts, mime);
 });
 
 function loop() {

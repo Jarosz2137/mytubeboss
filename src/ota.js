@@ -24,6 +24,12 @@ export async function initOta() {
   if (!Capacitor.isNativePlatform()) return;
   // Tell the plugin this bundle booted fine; otherwise it rolls back to the previous one.
   try { await CapacitorUpdater.notifyAppReady(); } catch (e) { console.warn('[ota] notifyAppReady', e); }
+  // A newer bundle downloaded last time? Apply it now, at launch (never mid-use).
+  try {
+    const { bundles = [] } = await CapacitorUpdater.list();
+    const ready = bundles.filter((b) => b.status === 'success' && Number(b.version) > BUILD).sort((a, b) => Number(b.version) - Number(a.version))[0];
+    if (ready) { console.log('[ota] applying downloaded', ready.version, 'at launch'); await CapacitorUpdater.set({ id: ready.id }); return; }
+  } catch (e) { console.warn('[ota] list', e?.message); }
   try {
     emit({ status: 'checking' });
     // GitHub serves release assets as application/octet-stream, so the native layer may hand
@@ -38,7 +44,8 @@ export async function initOta() {
     emit({ status: 'downloading', version: String(remote) });
     if (!info.checksum) throw new Error('paczka bez sumy kontrolnej');
     const bundle = await CapacitorUpdater.download({ url: info.url || `${BASE}/bundle.zip`, version: String(remote), checksum: info.checksum });
-    await CapacitorUpdater.next({ id: bundle.id }); // applied on next launch / background
+    // No next(): that would swap the app the moment it goes to background (felt like random restarts).
+    // It's applied when the pill is tapped, or at the next cold launch (see above).
     emit({ status: 'ready', id: bundle.id });
   } catch (e) {
     console.warn('[ota] check failed', e?.message || e);
