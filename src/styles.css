@@ -1038,7 +1038,7 @@ h1.big { font-size: 36px; margin: 22px 0 16px; background: linear-gradient(90deg
 .sc-tunnel2 rect { fill: none; stroke: color-mix(in srgb, var(--c2) 65%, white); stroke-width: 1.5px; vector-effect: non-scaling-stroke;
   transform-box: view-box; transform-origin: 0 0; opacity: 0; animation: tunnel2 8s linear infinite; animation-delay: calc(var(--i) * -1s); }
 @keyframes tunnel2 { 0% { transform: scale(.02) rotate(0deg); opacity: 0; } 20% { opacity: .45; } 100% { transform: scale(1.1) rotate(90deg); opacity: 0; } }
-.np.beat-on .sc-tunnel2 { transform: translate(-50%, -50%) scale(calc(1 + var(--kick) * .1)); }
+.np.beat-on .sc-tunnel2 { transform: translate(-50%, -50%) rotate(calc(var(--mid) * 20deg)) scale(calc(1 + var(--kick) * .12)); }
 .np.beat-on .sc-tunnel2 rect { stroke-width: calc(1.5px + var(--kick) * 2px); }
 
 /* contrasting accent: the cover colour's opposite hue, bright */
