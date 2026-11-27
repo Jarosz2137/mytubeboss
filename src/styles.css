@@ -291,7 +291,7 @@ h2 { font-size: 21px; font-weight: 700; margin: 26px 0 10px; letter-spacing: -0.
 @keyframes pop { 0% { transform: scale(.7); } 100% { transform: scale(1); } }
 
 /* now playing sheet */
-.np { transition: transform .5s cubic-bezier(.2,.9,.25,1), border-radius .5s, opacity .4s; transform: translateY(100%) scale(.92); border-radius: 40px; opacity: 0; will-change: transform; }
+.np { transition: transform .5s cubic-bezier(.2,.9,.25,1), border-radius .5s, opacity .4s; transform: translateY(100%) scale(.92); border-radius: 40px; opacity: 0; }
 .np.open { transform: none; border-radius: 0; opacity: 1; }
 .np-grabber { width: 38px; height: 5px; border-radius: 3px; background: rgba(255,255,255,.35); margin: 0 auto 6px; }
 .np-bg { animation: bgIn .8s ease both; }
@@ -368,7 +368,7 @@ h2 { font-size: 21px; font-weight: 700; margin: 26px 0 10px; letter-spacing: -0.
 
 /* looping cover-flow shelves */
 .shelf.loop { scroll-snap-type: x proximity; }
-.shelf.loop .card .cover { transition: transform .08s linear, filter .08s linear; will-change: transform; }
+.shelf.loop .card .cover { transition: transform .08s linear, filter .08s linear; }
 
 /* ================= NOW PLAYING: BOSS LOOK ================= */
 .wm-xs { flex-direction: row; align-items: baseline; gap: 4px; }
@@ -430,7 +430,7 @@ h2 { font-size: 21px; font-weight: 700; margin: 26px 0 10px; letter-spacing: -0.
 .np-bg { will-change: opacity; }
 .np-grid { will-change: background-position; }
 .mini-glow { filter: none; opacity: .25; background-size: 300% 300%; }
-.viz i { will-change: transform; }
+.viz i { }
 .shelf.loop .card .cover { transition: none; }
 /* grid: move a child with transform instead of repainting background */
 .np-grid { background: none; animation: none; overflow: hidden; }
@@ -438,7 +438,7 @@ h2 { font-size: 21px; font-weight: 700; margin: 26px 0 10px; letter-spacing: -0.
   background:
     repeating-linear-gradient(90deg, color-mix(in srgb, var(--c1) 80%, white) 0 1.5px, transparent 1.5px 60px),
     repeating-linear-gradient(0deg, color-mix(in srgb, var(--c1) 80%, white) 0 1.5px, transparent 1.5px 46px);
-  animation: gridMove 1.6s linear infinite; animation-play-state: paused; will-change: transform; }
+  animation: gridMove 1.6s linear infinite; animation-play-state: paused; }
 .np.is-playing .np-grid::before { animation-play-state: running; }
 @keyframes gridMove { from { transform: translateY(0); } to { transform: translateY(46px); } }
 
@@ -458,7 +458,7 @@ h2 { font-size: 21px; font-weight: 700; margin: 26px 0 10px; letter-spacing: -0.
 
 /* ===== cover strip: previous | now | next ===== */
 .np-art { position: relative; overflow: visible; }
-.np-strip { position: relative; width: 100%; display: flex; align-items: center; justify-content: center; will-change: transform; }
+.np-strip { position: relative; width: 100%; display: flex; align-items: center; justify-content: center; }
 .np-strip .np-cover { width: 70%; z-index: 2; }
 .np-strip .np-cover.big { width: 82%; }
 .np-side { position: absolute; top: 50%; width: 54%; z-index: 1; transition: opacity .3s, transform .3s; }
@@ -482,7 +482,7 @@ h2 { font-size: 21px; font-weight: 700; margin: 26px 0 10px; letter-spacing: -0.
 .np-info { margin-top: 8px; }
 
 /* ===== living scene: grid bends like a road, sun bobs, cover floats + pulses ===== */
-.np-grid { animation: gridBend 12s ease-in-out infinite; animation-play-state: paused; will-change: transform; }
+.np-grid { animation: gridBend 12s ease-in-out infinite; animation-play-state: paused; }
 .np.is-playing .np-grid { animation-play-state: running; }
 @keyframes gridBend {
   0%, 100% { transform: perspective(300px) rotateX(62deg) skewX(0deg) scaleY(1); }
@@ -494,7 +494,7 @@ h2 { font-size: 21px; font-weight: 700; margin: 26px 0 10px; letter-spacing: -0.
 .np.is-playing .np-sun { animation-play-state: running; }
 @keyframes sunBob { 0%, 100% { translate: 0 0; scale: 1 1; } 50% { translate: 0 24px; scale: 1.04 .95; } }
 
-.np-sway { width: 100%; animation: sway 6s ease-in-out infinite; animation-play-state: paused; will-change: transform; }
+.np-sway { width: 100%; animation: sway 6s ease-in-out infinite; animation-play-state: paused; }
 .np.is-playing .np-sway { animation-play-state: running; }
 @keyframes sway {
   0%, 100% { transform: translateY(0) rotate(-2.5deg); }
@@ -529,7 +529,7 @@ h2 { font-size: 21px; font-weight: 700; margin: 26px 0 10px; letter-spacing: -0.
 .mq-item { flex: none; }
 .mq.run { -webkit-mask: linear-gradient(90deg, #000 calc(100% - 24px), transparent); mask: linear-gradient(90deg, #000 calc(100% - 24px), transparent); }
 .mq.run .mq-item { padding-right: 48px; }
-.mq.run .mq-track { animation: mq var(--mq-d) linear 1.8s infinite; will-change: transform; }
+.mq.run .mq-track { animation: mq var(--mq-d) linear 1.8s infinite; }
 @keyframes mq { 0%, 12% { transform: translateX(0); } 100% { transform: translateX(calc(-1 * var(--mq-w))); } }
 
 /* thin neon bar while a view refreshes in the background */
@@ -700,15 +700,15 @@ html, body { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 .viz.real { gap: 3px; height: 30px; }
 .viz.real span { position: relative; flex: 1; height: 100%; display: flex; align-items: flex-end; }
 .viz.real i { display: block; width: 100%; height: 100%; animation: none !important; transform-origin: bottom; transform: scaleY(.06);
-  border-radius: 2px; background: linear-gradient(to top, color-mix(in srgb, var(--c1) 85%, white) 0%, var(--c1) 55%, #ffe08a 100%); will-change: transform; }
-.viz.real b { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; border-radius: 1px; background: #fff; opacity: .85; will-change: transform; }
+  border-radius: 2px; background: linear-gradient(to top, color-mix(in srgb, var(--c1) 85%, white) 0%, var(--c1) 55%, #ffe08a 100%); }
+.viz.real b { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; border-radius: 1px; background: #fff; opacity: .85; }
 .np:not(.is-playing) .viz.real i { transform: scaleY(.06); }
 
 /* ===== modern waveform visualizer ===== */
 .viz.wave { display: flex; align-items: center; justify-content: space-between; gap: 0; height: 34px; margin-top: 14px; opacity: 1;
   filter: drop-shadow(0 0 8px color-mix(in srgb, var(--c1) 60%, transparent)); }
 .viz.wave i { flex: none; width: 3px; height: 100%; border-radius: 3px; animation: none !important; transform: scaleY(.08); transform-origin: center;
-  background: linear-gradient(to bottom, color-mix(in srgb, var(--c1) 70%, white), var(--c1) 50%, color-mix(in srgb, var(--c2) 80%, white)); will-change: transform; }
+  background: linear-gradient(to bottom, color-mix(in srgb, var(--c1) 70%, white), var(--c1) 50%, color-mix(in srgb, var(--c2) 80%, white)); }
 .np:not(.is-playing) .viz.wave i { transition: transform .5s ease; transform: scaleY(.08) !important; }
 
 /* ===== audio-reactive scene (BEAT): bass → cover, mid → background motion, high → glow & sheen ===== */
@@ -782,7 +782,7 @@ html, body { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 .np.beat-on .np-art::before { opacity: calc(var(--high) * .9 + var(--kick) * .6); transform: translate(-50%, -50%) scale(calc(.9 + var(--bass) * .35 + var(--kick) * .2)); }
 .np.beat-on .np-strip .np-cover { filter: brightness(calc(1 + var(--high) * .2 + var(--kick) * .12)) saturate(calc(1 + var(--mid) * .35)); }
 .np.beat-on .sc-rings { transform: scale(calc(1 + var(--bass) * .2 + var(--kick) * .15)); }
-.np.beat-on .sc-tunnel { transform: rotate(calc(var(--mid) * 7deg)) scale(calc(1 + var(--kick) * .06)); will-change: transform; }
+.np.beat-on .sc-tunnel { transform: rotate(calc(var(--mid) * 7deg)) scale(calc(1 + var(--kick) * .06)); }
 .np.beat-on .sc-hex { transform: translate(-50%, -50%) scale(calc(1 + var(--bass) * .14 + var(--kick) * .1)); }
 .np.beat-on .sc-prism { transform: translate(-50%, -50%) scale(calc(1 + var(--mid) * .18 + var(--kick) * .1)); }
 .np.beat-on .sc-dots { opacity: calc(.3 + var(--high) * .6 + var(--kick) * .3); }
@@ -1038,7 +1038,7 @@ h1.big { font-size: 36px; margin: 22px 0 16px; background: linear-gradient(90deg
 .sc-tunnel2 rect { fill: none; stroke: color-mix(in srgb, var(--c2) 65%, white); stroke-width: 1.5px; vector-effect: non-scaling-stroke;
   transform-box: view-box; transform-origin: 0 0; opacity: 0; animation: tunnel2 8s linear infinite; animation-delay: calc(var(--i) * -1s); }
 @keyframes tunnel2 { 0% { transform: scale(.02) rotate(0deg); opacity: 0; } 20% { opacity: .45; } 100% { transform: scale(1.1) rotate(90deg); opacity: 0; } }
-.np.beat-on .sc-tunnel2 { transform: translate(-50%, -50%) rotate(calc(var(--mid) * 7deg)) scale(calc(1 + var(--kick) * .06)); will-change: transform; }
+.np.beat-on .sc-tunnel2 { transform: translate(-50%, -50%) rotate(calc(var(--mid) * 7deg)) scale(calc(1 + var(--kick) * .06)); }
 
 /* contrasting accent: the cover colour's opposite hue, bright */
 .np { --cx: hsl(from var(--c1, #ff5e8a) calc(h + 180) 95% 62%); --cx2: hsl(from var(--c1, #ff5e8a) calc(h + 150) 95% 60%); }
@@ -1048,3 +1048,8 @@ h1.big { font-size: 36px; margin: 22px 0 16px; background: linear-gradient(90deg
 .sc-prism polygon { stroke: var(--cx2); opacity: .5; }
 .sc-stars i { background: var(--cx); box-shadow: 0 0 8px 2px color-mix(in srgb, var(--cx) 80%, transparent); }
 .viz.wave i { background: linear-gradient(180deg, var(--cx), var(--cx2)) !important; }
+
+/* GPU memory: huge animated layers (up to 170vmax at 3x density) were likely getting the web view killed */
+.sc-tunnel2, .sc-hex, .sc-prism { width: 115vmax; height: 115vmax; }
+.sc-rings i { width: 105vmax; }
+.np-scene { contain: strict; }
