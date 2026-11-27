@@ -1236,10 +1236,6 @@ function NowPlaying({ open, onClose, onOpen, sheetRef }) {
       <Scene id={t.id} />
       <div className="np-inner">
         <div className="np-grabber" />
-        <div className="np-brand">
-          <Wordmark size="xs" />
-          <button className={`beat-btn ${beat ? 'on' : ''}`} onClick={() => { tap(); setBeat(!beat); }} aria-label="Puls do beatu">BEAT</button>
-        </div>
         {beat && beatStatus && <div className="beat-note">BEAT: {beatStatus}</div>}
         <div className="np-top">
           <button className="icon-btn" onClick={onClose}>{Icon.down}</button>
@@ -1249,6 +1245,7 @@ function NowPlaying({ open, onClose, onOpen, sheetRef }) {
             <button className={p.mode === 'video' ? 'on' : ''} onClick={() => { tap(); setMode('video'); }}>Teledysk</button>
           </div>
           <div className="np-top-r">
+            <button className={`beat-btn ${beat ? 'on' : ''}`} onClick={() => { tap(); setBeat(!beat); }} aria-label="Puls do beatu">BEAT</button>
             <button className="icon-btn" onClick={() => { tap(); if (!pickOutput()) alert('Zmień wyjście w Centrum sterowania (ikona AirPlay przy odtwarzaczu).'); }} aria-label="Wybierz urządzenie">
               <svg viewBox="0 0 24 24"><path d="M6 17H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h16a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1h-2" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /><path d="M12 14l5 6H7z" fill="currentColor" /></svg>
             </button
