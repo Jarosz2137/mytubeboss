@@ -18,6 +18,16 @@ const CONSENT = ['.youtube.com', '.google.com'].flatMap((domain) => [
   { domain, name: 'CONSENT', value: 'PENDING+987' },
 ]);
 
+// Passkeys can't work in this private window (no access to the iPhone's keychain), so hide
+// WebAuthn: Google then offers the password straight away instead of a dead fingerprint prompt.
+const NO_PASSKEY = `(() => { try {
+  Object.defineProperty(window, 'PublicKeyCredential', { value: undefined, configurable: true });
+  if (navigator.credentials) {
+    const deny = () => Promise.reject(new DOMException('Not allowed', 'NotAllowedError'));
+    navigator.credentials.get = deny; navigator.credentials.create = deny;
+  }
+} catch (e) {} })();`;
+
 function flow() {
   return new Promise((resolve, reject) => {
     let done = false, handoffs = 0, busy = false;
@@ -65,7 +75,7 @@ function flow() {
     (async () => {
       subs.push(await Browser.addListener('nav', () => setTimeout(step, 300)));
       subs.push(await Browser.addListener('closed', () => finish(new Error('cancelled'))));
-      await Browser.open({ url: START, title: 'Zaloguj przez Google' });
+      await Browser.open({ url: START, title: 'Zaloguj przez Google', scripts: [NO_PASSKEY] });
       await Browser.setCookies({ cookies: CONSENT }).catch(() => {});
     })().catch((e) => finish(e));
   });

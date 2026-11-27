@@ -199,9 +199,11 @@ public class MTBBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
         let urlString = call.getString("url") ?? ""
         let ua = call.getString("userAgent")
         let title = call.getString("title") ?? ""
+        // JS to run at document start on every page (sent from JS, so it can change via OTA)
+        let scripts = (call.getArray("scripts", String.self) ?? [])
         guard let url = URL(string: urlString) else { call.reject("bad url"); return }
         DispatchQueue.main.async {
-            let vc = MTBBrowserViewController(start: url, userAgent: ua, onNav: { [weak self] u in
+            let vc = MTBBrowserViewController(start: url, userAgent: ua, scripts: scripts, onNav: { [weak self] u in
                 self?.notifyListeners("nav", data: ["url": u])
             }, onClose: { [weak self] in
                 self?.notifyListeners("closed", data: [:])
@@ -266,6 +268,7 @@ public class MTBBrowserPlugin: CAPPlugin, CAPBridgedPlugin {
 class MTBBrowserViewController: UIViewController, WKNavigationDelegate {
     private let start: URL
     private let userAgent: String?
+    private let scripts: [String]
     private let onNav: (String) -> Void
     private let onClose: () -> Void
     var web: WKWebView?
@@ -273,8 +276,8 @@ class MTBBrowserViewController: UIViewController, WKNavigationDelegate {
     private let coverLabel = UILabel()
     private var quiet = false
 
-    init(start: URL, userAgent: String?, onNav: @escaping (String) -> Void, onClose: @escaping () -> Void) {
-        self.start = start; self.userAgent = userAgent; self.onNav = onNav; self.onClose = onClose
+    init(start: URL, userAgent: String?, scripts: [String], onNav: @escaping (String) -> Void, onClose: @escaping () -> Void) {
+        self.start = start; self.userAgent = userAgent; self.scripts = scripts; self.onNav = onNav; self.onClose = onClose
         super.init(nibName: nil, bundle: nil)
     }
     required init?(coder: NSCoder) { fatalError() }
@@ -286,6 +289,9 @@ class MTBBrowserViewController: UIViewController, WKNavigationDelegate {
         let cfg = WKWebViewConfiguration()
         cfg.websiteDataStore = .nonPersistent()
         cfg.mediaTypesRequiringUserActionForPlayback = .all
+        for js in scripts {
+            cfg.userContentController.addUserScript(WKUserScript(source: js, injectionTime: .atDocumentStart, forMainFrameOnly: false))
+        }
         let w = WKWebView(frame: view.bounds, configuration: cfg)
         w.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         w.customUserAgent = userAgent ?? "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1"
