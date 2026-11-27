@@ -1062,11 +1062,11 @@ function Scene({ id }) {
         </svg>
       )}
       {kind === 'hex' && (
-        <svg className="sc-hex" viewBox="-100 -100 200 200">
+        <div className="sc-hex2">
           {[0, 1, 2, 3, 4].map((i) => (
-            <polygon key={i} style={{ '--i': i }} points="0,-80 69,-40 69,40 0,80 -69,40 -69,-40" />
+            <svg key={i} className="sc-shape" style={{ '--i': i }} viewBox="-100 -100 200 200"><polygon points="0,-80 69,-40 69,40 0,80 -69,40 -69,-40" /></svg>
           ))}
-        </svg>
+        </div>
       )}
       {kind === 'dots' && (
         <div className="sc-stars">
@@ -1074,9 +1074,9 @@ function Scene({ id }) {
         </div>
       )}
       {kind === 'prism' && (
-        <svg className="sc-prism" viewBox="-100 -100 200 200">
-          {[0, 1, 2, 3, 4, 5].map((i) => <polygon key={i} style={{ '--i': i }} points="0,-70 61,35 -61,35" />)}
-        </svg>
+        <div className="sc-prism2">
+          {[0, 1, 2, 3, 4, 5].map((i) => <svg key={i} className="sc-shape" style={{ '--i': i }} viewBox="-100 -100 200 200"><polygon points="0,-70 61,35 -61,35" /></svg>)}
+        </div>
       )}
     </div>
   );

@@ -1074,3 +1074,19 @@ h1.big { font-size: 36px; margin: 22px 0 16px; background: linear-gradient(90deg
 
 /* app hidden -> nothing animates */
 .bg-idle *, .bg-idle *::before, .bg-idle *::after { animation-play-state: paused !important; transition: none !important; }
+
+/* hex / prism: each shape is its own GPU layer that only rotates (drawn once), instead of one big SVG
+   redrawn every frame with changing stroke widths */
+.sc-hex2, .sc-prism2 { position: absolute; left: 50%; top: 38%; width: 0; height: 0; will-change: transform; }
+.sc-shape { position: absolute; left: 0; top: 0; width: 115vmax; height: 115vmax; overflow: visible; will-change: transform; }
+.sc-shape polygon { fill: none; stroke-width: .6; }
+.sc-hex2 .sc-shape { transform: translate(-50%, -50%) scale(calc(.25 + var(--i) * .22)); animation: hexSpin calc(30s + var(--i) * 6s) linear infinite; opacity: .5; }
+.sc-hex2 .sc-shape:nth-child(even) { animation-direction: reverse; }
+.sc-hex2 polygon { stroke: var(--cx); }
+.sc-prism2 .sc-shape { transform: translate(-50%, -50%) rotate(calc(var(--i) * 20deg)) scale(calc(.3 + var(--i) * .2)); opacity: .5;
+  animation: prism2 calc(14s + var(--i) * 3s) ease-in-out infinite; }
+@keyframes prism2 { 50% { opacity: .7; rotate: 60deg; } }
+.sc-prism2 polygon { stroke: var(--cx2); }
+/* beat: scale + brightness of the whole group (compositor only) */
+.np.beat-on .sc-hex2 { transform: scale(calc(1 + var(--bass) * .14 + var(--kick) * .1)); opacity: calc(.8 + var(--kick) * .4); }
+.np.beat-on .sc-prism2 { transform: scale(calc(1 + var(--mid) * .18 + var(--kick) * .1)); opacity: calc(.8 + var(--kick) * .4); }
