@@ -632,3 +632,7 @@ h2 { font-size: 21px; font-weight: 700; margin: 26px 0 10px; letter-spacing: -0.
 .manual-login { margin-top: 22px; border-top: .5px solid #26262c; padding-top: 14px; }
 .manual-login summary { color: var(--fg2); font-size: 14px; cursor: pointer; padding: 6px 0; }
 .lib-account { display: flex; gap: 10px; flex-wrap: wrap; margin: 20px 0; }
+
+/* iOS "text autosizing" enlarged very wide text (the marquee track); keep sizes exactly as written */
+html, body { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+.mq, .mq-track, .mq-item { -webkit-text-size-adjust: 100%; font-size: inherit; }
