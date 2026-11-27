@@ -365,7 +365,16 @@ export function setMode(mode) {
 // otherwise fall back to audio so the music doesn't stop.
 videoEl.setAttribute('autopictureinpicture', '');
 try { videoEl.autoPictureInPicture = true; } catch {}
+let pipPendingAt = 0; // PiP is starting (iOS pauses the video for a moment while it animates)
+const pipPending = () => Date.now() - pipPendingAt < 3000;
 export const inPip = () => videoEl.webkitPresentationMode === 'picture-in-picture' || document.pictureInPictureElement === videoEl;
+const pipOrStarting = () => inPip() || pipPending();
+const keepVideoGoing = () => { if (state.mode === 'video' && !userPaused && videoEl.paused) videoEl.play().catch(() => {}); };
+videoEl.addEventListener('webkitpresentationmodechanged', () => {
+  console.info('[pip] mode', videoEl.webkitPresentationMode);
+  if (inPip()) { pipPendingAt = 0; keepVideoGoing(); }
+});
+videoEl.addEventListener('enterpictureinpicture', () => { pipPendingAt = 0; keepVideoGoing(); });
 export function togglePip() {
   try {
     if (videoEl.webkitSupportsPresentationMode?.('picture-in-picture')) {
@@ -377,19 +386,20 @@ export function togglePip() {
 }
 // Called by the native side right before the app is minimised.
 window.__mtbAutoPip = () => {
-  if (state.mode === 'video' && state.playing && !inPip()) togglePip();
+  if (state.mode === 'video' && state.playing && !inPip()) { pipPendingAt = Date.now(); togglePip(); }
 };
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden || state.mode !== 'video' || !state.playing) return;
   userPaused = false;
   setTimeout(() => {
-    if (!document.hidden || inPip()) return; // PiP took over: keep the video
+    if (!document.hidden || pipOrStarting()) return; // PiP took over (or is starting): keep the video
     if (state.mode === 'video') setMode('audio');
-  }, 600);
+  }, 2500);
 });
 // iOS sometimes pauses the inline video when backgrounding; resume it via audio instead.
 videoEl.addEventListener('pause', () => {
-  if (document.hidden && el === videoEl && state.mode === 'video' && !inPip() && !userPaused) setMode('audio');
+  if (pipOrStarting()) { setTimeout(keepVideoGoing, 300); return; } // iOS pauses briefly while PiP opens
+  if (document.hidden && el === videoEl && state.mode === 'video' && !userPaused) setTimeout(() => { if (!pipOrStarting() && document.hidden && videoEl.paused) setMode('audio'); }, 2500);
 });
 
 /* -------- element events -------- */
