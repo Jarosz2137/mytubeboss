@@ -314,6 +314,19 @@ function ListenAgain({ s, onOpen }) {
   );
 }
 
+// "Now playing" pill on the home hero (taps open the player via the mini player)
+function NowChip() {
+  const p = usePlayer();
+  const t = current();
+  if (!t) return <div className="hh-tag">Bez reklam · w tle · z ekranem blokady</div>;
+  return (
+    <div className={`hh-now ${p.playing ? 'on' : ''}`}>
+      <span className="eq"><span /><span /><span /></span>
+      <span className="hh-now-t"><Marquee text={`${t.title} · ${t.subtitle}`} /></span>
+    </div>
+  );
+}
+
 function HomeView({ onOpen, fresh }) {
   const [chip, setChip] = useState(null);
   const s = useAsync(() => yt.home(chip), [chip, fresh]);
@@ -321,9 +334,14 @@ function HomeView({ onOpen, fresh }) {
   useEffect(() => { if (s.data?.chips?.length && !chips.length) setChips(s.data.chips); }, [s.data]);
   return (
     <div className="view">
-      <div className="home-head">
-        <Wordmark />
-        <div className="greet">{greeting()}</div>
+      <div className="home-hero">
+        <div className="hh-sun" aria-hidden="true" />
+        <div className="hh-grid" aria-hidden="true" />
+        <div className="hh-content">
+          <div className="greet">{greeting()}</div>
+          <Wordmark />
+          <NowChip />
+        </div>
       </div>
       {chips.length > 0 && (
         <div className="chips">
@@ -1291,13 +1309,14 @@ export default function App() {
   return (
     <div className="app" style={vars}>
       <Splash />
+      <div className="ambient" aria-hidden="true"><i className="a1" /><i className="a2" /><i className="a3" /></div>
       <div id="engine-holder" className="engine-holder" />
       <main ref={scroller} className="scroller" onScroll={(e) => {
         const y = e.currentTarget.scrollTop;
         e.currentTarget.style.setProperty('--sy', String(y));
-        e.currentTarget.parentElement.classList.toggle('scrolled', y > 40);
+        e.currentTarget.parentElement.classList.toggle('scrolled', y > 90);
       }}>
-        <div className="topbar" />
+        <div className="topbar"><span className="tb-title">{top ? '' : ({ home: 'Główna', search: 'Szukaj', library: 'Biblioteka' })[tab]}</span></div>
         {top && <button className="back" onClick={back}>{Icon.back}</button>}
         <div style={{ display: top ? 'none' : 'block' }}>
           <div style={{ display: tab === 'home' ? 'block' : 'none' }}><HomeView onOpen={open} fresh={fresh.home} /></div>
