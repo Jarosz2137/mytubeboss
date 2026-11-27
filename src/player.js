@@ -461,8 +461,9 @@ if ('mediaSession' in navigator) {
   h('nexttrack', () => next());
   h('previoustrack', () => prev());
   h('seekto', (d) => seek(d.seekTime));
-  h('seekbackward', (d) => seek(el.currentTime - (d.seekOffset || 10)));
-  h('seekforward', (d) => seek(el.currentTime + (d.seekOffset || 10)));
+  // No seek ±10 s handlers: with them iOS shows skip-10 buttons instead of previous/next track.
+  h('seekbackward', null);
+  h('seekforward', null);
 }
 
 export function cycleRepeat() {
