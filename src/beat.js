@@ -22,7 +22,20 @@ export const onBeat = (f) => { subs.add(f); return () => subs.delete(f); };
 export let beatStatus = '';
 const status = (s) => { beatStatus = s; subs.forEach((f) => f(enabled)); };
 
-async function analyse(id, parts, mime) {
+// Decoding a whole song is a big, short memory spike. Skipping through tracks used to start several
+// decodes at once -> iOS killed the web view. Now: wait until the track has been current for a moment,
+// and never run two at a time.
+let analyseTimer = null, running = null;
+function analyse(id, parts, mime) {
+  clearTimeout(analyseTimer);
+  analyseTimer = setTimeout(async () => {
+    if (current()?.id !== id || document.hidden) return;
+    if (running) { await running.catch(() => {}); if (current()?.id !== id) return; }
+    running = analyseNow(id, parts, mime);
+    try { await running; } finally { running = null; }
+  }, 1200);
+}
+async function analyseNow(id, parts, mime) {
   if (envs.has(id) || busy.has(id) || !parts?.length) return;
   busy.add(id);
   try {
