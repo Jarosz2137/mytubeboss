@@ -6,9 +6,9 @@ import { useCoverColors } from './colors.js';
 import { getLogs, clearLogs } from './debuglog.js';
 import {
   usePlayer, current, playList, addNext, jump, toggle, next, prev, seek, setMode, videoElement,
-  cycleRepeat, toggleShuffle, toggleLike, useTime, togglePip, pickOutput, dismissLoginPrompt, pipIfVideo,
+  cycleRepeat, toggleShuffle, toggleLike, useTime, togglePip, pickOutput, dismissLoginPrompt, pipIfVideo, RATES, setRate,
 } from './player.js';
-import { setBeat, beatOn, onBeat, setBeatTarget, restoreBeat, beatStatus, bandLevels } from './beat.js';
+import { setBeat, beatOn, onBeat, setBeatTarget, restoreBeat, beatStatus, bandLevels, dropTime, onDrop } from './beat.js';
 import { onOta, otaState, applyNow, BUILD, recheck } from './ota.js';
 import { canGoogleLogin, googleSignIn } from './googleLogin.js';
 import { loadLocal, onLocal, localLists, getLocal, createLocal, addToLocal, removeFromLocal, renameLocal, deleteLocal, localCard, isLocalId, onAddSheet, openAddSheet } from './local.js';
@@ -92,6 +92,7 @@ function kindOf(item) {
   const id = item.id || '';
   if (isLocalId(id)) return 'local';
   if (item.type === 'downloads') return 'downloads';
+  if (item.type === 'wrapped') return 'wrapped';
   if (yt.isPlayable(item)) return 'track';
   if (item.type === 'artist' || item.type === 'library_artist' || id.startsWith('UC')) return 'artist';
   if (item.type === 'album' || id.startsWith('MPR')) return 'album';
@@ -400,6 +401,78 @@ function SearchView({ onOpen }) {
 }
 
 // Playlists stored on the phone + import from Spotify / Apple Music.
+// ---- Boss Wrapped: your stats any day of the year (from history kept on the phone) ----
+function WrappedView({ onOpen }) {
+  const [h, setH] = useState(null);
+  const [range, setRange] = useState(30);
+  useEffect(() => { Preferences.get({ key: 'history' }).then(({ value }) => { try { setH(JSON.parse(value || '[]')); } catch { setH([]); } }); }, []);
+  if (!h) return <div className="view"><Loader /></div>;
+  const since = range ? Date.now() - range * 864e5 : 0;
+  const list = h.filter((x) => x.at >= since);
+  const totalMin = Math.round(list.reduce((a, x) => a + x.sec, 0) / 60);
+  const by = (key) => {
+    const m = new Map();
+    for (const x of list) { const k = key(x); if (!k) continue; const e = m.get(k) || { n: 0, sec: 0, x }; e.n++; e.sec += x.sec; m.set(k, e); }
+    return [...m.values()].sort((a, b) => b.n - a.n);
+  };
+  const topTracks = by((x) => x.id).slice(0, 5);
+  const topArtists = by((x) => (x.subtitle || '').split(',')[0].trim()).slice(0, 5);
+  const hours = new Array(24).fill(0); list.forEach((x) => { hours[new Date(x.at).getHours()]++; });
+  const peak = hours.indexOf(Math.max(...hours));
+  const days = new Set(h.map((x) => new Date(x.at).toDateString()));
+  let streak = 0; for (let d = new Date(); days.has(d.toDateString()); d.setDate(d.getDate() - 1)) streak++;
+  const vibe = peak < 5 ? 'Nocny boss' : peak < 11 ? 'Poranny rozruch' : peak < 17 ? 'Dzienna zmiana' : peak < 22 ? 'Wieczorny cruise' : 'Nocny boss';
+  return (
+    <div className="view wrapped">
+      <div className="wr-hero">
+        <div className="wr-kicker">BOSS WRAPPED</div>
+        <h1 className="big">Twoje słuchanie</h1>
+        <div className="chips">
+          {[[7, '7 dni'], [30, '30 dni'], [365, 'Rok'], [0, 'Zawsze']].map(([v, l]) => (
+            <button key={l} className={range === v ? 'on' : ''} onClick={() => { tap(); setRange(v); }}>{l}</button>
+          ))}
+        </div>
+      </div>
+      {!list.length ? <p className="empty-note">Jeszcze nic tu nie ma. Posłuchaj trochę muzyki, a statystyki zbudują się same.</p> : (
+        <>
+          <div className="wr-stats">
+            <div className="wr-stat big"><b>{totalMin.toLocaleString('pl-PL')}</b><span>minut muzyki</span></div>
+            <div className="wr-stat"><b>{list.length}</b><span>odtworzeń</span></div>
+            <div className="wr-stat"><b>{streak}</b><span>{streak === 1 ? 'dzień' : 'dni'} z rzędu</span></div>
+            <div className="wr-stat"><b>{String(peak).padStart(2, '0')}:00</b><span>{vibe}</span></div>
+          </div>
+          <section className="section">
+            <div className="sec-head"><h2>Top utwory</h2></div>
+            <div className="wr-list">
+              {topTracks.map((e, i) => (
+                <button key={e.x.id} className="wr-row" onClick={() => { tap(); playList(topTracks.map((t) => ({ type: 'song', id: t.x.id, title: t.x.title, subtitle: t.x.subtitle, thumb: t.x.thumb })), i); }}>
+                  <span className="wr-rank">{i + 1}</span>
+                  <Cover src={e.x.thumb} className="row-cover" />
+                  <span className="wr-txt"><b><Marquee text={e.x.title} /></b><small>{e.x.subtitle}</small></span>
+                  <span className="wr-n">{e.n}×</span>
+                </button>
+              ))}
+            </div>
+          </section>
+          <section className="section">
+            <div className="sec-head"><h2>Top wykonawcy</h2></div>
+            <div className="wr-list">
+              {topArtists.map((e, i) => (
+                <div key={i} className="wr-row"><span className="wr-rank">{i + 1}</span><Cover src={e.x.thumb} className="row-cover round" /><span className="wr-txt"><b>{(e.x.subtitle || '').split(',')[0]}</b><small>{Math.round(e.sec / 60)} min</small></span><span className="wr-n">{e.n}×</span></div>
+              ))}
+            </div>
+          </section>
+          <section className="section">
+            <div className="sec-head"><h2>Kiedy słuchasz</h2></div>
+            <div className="wr-hours">{hours.map((v, i) => <i key={i} style={{ transform: `scaleY(${Math.max(0.04, v / (Math.max(...hours) || 1))})` }} className={i === peak ? 'peak' : ''} />)}</div>
+            <div className="wr-hours-l"><span>0</span><span>6</span><span>12</span><span>18</span><span>23</span></div>
+          </section>
+        </>
+      )}
+    </div>
+  );
+}
+
 function LocalShelf({ onOpen, signedIn = false }) {
   const [lists, setLists] = useState(localLists());
   const [importing, setImporting] = useState(false);
@@ -427,6 +500,9 @@ function LocalShelf({ onOpen, signedIn = false }) {
         </button>
         <button className="lt lt-new" onClick={() => { tap(); create(); }}>
           <span className="lt-ico">{Icon.plus}</span><span className="lt-t">Nowa playlista</span><span className="lt-s">w telefonie</span>
+        </button>
+        <button className="lt lt-wrap" onClick={() => { tap(); onOpen({ type: 'wrapped', id: 'wrapped' }); }}>
+          <span className="lt-ico">✦</span><span className="lt-t">Boss Wrapped</span><span className="lt-s">Twoje statystyki</span>
         </button>
         <div className="lt lt-stat" aria-hidden="true">
           <span className="lt-num">{lists.length}</span><span className="lt-s">{lists.length === 1 ? 'playlista' : 'playlist'} w telefonie</span>
@@ -850,10 +926,33 @@ function Visualizer() {
 
 // Apple-Music-style scrubber: grab anywhere, drag is relative (no jump on touch),
 // bar thickens while dragging, tap jumps to the spot.
+// Drop jump + playback speed, above the scrubber
+function NpTools() {
+  const p = usePlayer();
+  const t = current();
+  const [, force] = useState(0);
+  useEffect(() => onDrop(() => force((x) => x + 1)), []);
+  const drop = t && dropTime(t.id);
+  const rate = p.rate || 1;
+  const label = rate === 1 ? '1×' : rate < 1 ? `${rate}× slowed` : `${rate}× sped up`;
+  const nextRate = () => { tap(); const i = RATES.indexOf(rate); setRate(RATES[(i + 1) % RATES.length]); };
+  if (p.mode === 'video') return null;
+  return (
+    <div className="np-tools">
+      <button className={`tool-chip ${rate !== 1 ? 'lit' : ''}`} onClick={nextRate} onContextMenu={(e) => { e.preventDefault(); setRate(1); }}>{label}</button>
+      {drop ? <button className="tool-chip drop" onClick={() => { tap(ImpactStyle.Medium); seek(Math.max(0, drop - 1.5)); }}>⚡ Skocz do dropu · {fmt(drop)}</button>
+        : <span className="tool-chip ghosty">⚡ szukam dropu…</span>}
+    </div>
+  );
+}
+
 function Scrubber() {
   const { time, duration } = useTime();
   const [drag, setDrag] = useState(null);
   const bar = useRef();
+  const [, forceDrop] = useState(0);
+  useEffect(() => onDrop(() => forceDrop((x) => x + 1)), []);
+  const dropAt = current() && dropTime(current().id);
   const g = useRef(null);
   const max = duration || 1;
   const clamp = (v) => Math.max(0, Math.min(max, v));
@@ -889,6 +988,7 @@ function Scrubber() {
     <div className={`scrub ${drag != null ? 'active' : ''}`} ref={bar}
       onTouchStart={onStart} onTouchMove={onMove} onTouchEnd={onEnd} onTouchCancel={onEnd}>
       <div className="scrub-track"><div className="scrub-fill" style={{ transform: `scaleX(${val / max})` }} /></div>
+      {dropAt && max > 0 && <i className="scrub-drop" style={{ left: `${(dropAt / max) * 100}%` }} />}
       <div className="scrub-times"><span>{fmt(val)}</span><span>-{fmt(Math.max(0, (duration || 0) - val))}</span></div>
     </div>
   );
@@ -1138,6 +1238,7 @@ function NowPlaying({ open, onClose, onOpen, sheetRef }) {
           </div>
         )}
         <Visualizer />
+        <NpTools />
         <Scrubber />
         <div className="np-controls">
           <button className={`icon-btn small-ctl ${p.shuffle ? 'lit' : ''}`} onClick={() => { tap(); toggleShuffle(); }}>{Icon.shuffle}</button>
@@ -1340,6 +1441,7 @@ export default function App() {
         {(top?.kind === 'album' || top?.kind === 'playlist') && <CollectionView key={top.id} id={top.id} kind={top.kind} onOpen={open} />}
         {top?.kind === 'local' && <LocalCollection key={top.id} id={top.id} onOpen={open} onBack={back} />}
         {top?.kind === 'downloads' && <DownloadsView key="dl" onOpen={open} />}
+        {top?.kind === 'wrapped' && <WrappedView key="wr" onOpen={open} />}
       </main>
       <MiniPlayer hidden={npOpen} onDrag={dragSheet} onDragEnd={endDragSheet} />
       <nav className="tabs">

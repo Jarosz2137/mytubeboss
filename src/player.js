@@ -414,6 +414,40 @@ on('playing', () => set({ playing: true, loading: false }));
 on('pause', () => set({ playing: false }));
 on('waiting', () => set({ loading: true }));
 on('canplay', () => set({ loading: false }));
+// ---- playback speed (sped up / slowed) ----
+export const RATES = [0.8, 0.9, 1, 1.15, 1.25];
+let rate = 1;
+export const getRate = () => rate;
+export function setRate(r) {
+  rate = r;
+  for (const m of [audioEl, videoEl]) {
+    try { m.preservesPitch = false; m.webkitPreservesPitch = false; } catch { /* */ } // nightcore / slowed feel
+    m.playbackRate = r; m.defaultPlaybackRate = r;
+  }
+  set({ rate: r });
+}
+on('playing', () => { if (el.playbackRate !== rate) { el.playbackRate = rate; el.defaultPlaybackRate = rate; } });
+
+// ---- listening history for Boss Wrapped (kept on the phone) ----
+let listened = { id: null, sec: 0, last: 0 };
+async function flushListen() {
+  const t = state.queue.find((q) => q.id === listened.id);
+  if (!t || listened.sec < 30) return;
+  const { Preferences } = await import('@capacitor/preferences');
+  let h = [];
+  try { h = JSON.parse((await Preferences.get({ key: 'history' })).value || '[]'); } catch { h = []; }
+  h.push({ id: t.id, title: t.title, subtitle: t.subtitle, thumb: t.thumb, sec: Math.round(listened.sec), at: Date.now() });
+  if (h.length > 4000) h = h.slice(-4000);
+  await Preferences.set({ key: 'history', value: JSON.stringify(h) });
+}
+on('timeupdate', () => {
+  const t = current();
+  if (t && listened.id !== t.id) { flushListen(); listened = { id: t.id, sec: 0, last: el.currentTime }; }
+  const d = el.currentTime - listened.last;
+  if (d > 0 && d < 2) listened.sec += d / (el.playbackRate || 1);
+  listened.last = el.currentTime;
+});
+document.addEventListener('visibilitychange', () => { if (document.hidden) { flushListen(); listened.sec = 0; } });
 on('timeupdate', () => {
   setTime({ time: el.currentTime, duration: Number.isFinite(el.duration) && el.duration > 0 ? el.duration : timeState.duration });
   updatePosition();

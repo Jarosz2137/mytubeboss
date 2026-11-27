@@ -9,6 +9,10 @@ import { audioElement, current } from './player.js';
 const RATE = 8000, FRAME = 160; // 20 ms frames
 const envs = new Map(); // track id -> Float32Array (0..1) bass kick envelope (BEAT)
 const spectra = new Map(); // track id -> Float32Array[] one level envelope per band (visualizer)
+const drops = new Map(); // track id -> seconds of the drop/chorus
+const dropSubs = new Set();
+export const dropTime = (id) => drops.get(id);
+export const onDrop = (f) => { dropSubs.add(f); return () => dropSubs.delete(f); };
 export const BAND_HZ = [55, 110, 220, 440, 880, 1600, 2800, 3700];
 const busy = new Set();
 let raf = 0, target = null, cur = 1, enabled = false;
@@ -52,6 +56,24 @@ async function analyse(id, parts, mime) {
       bands.push(e);
     }
     spectra.set(id, bands);
+    // Drop / chorus: the biggest sustained jump in overall energy (4 s windows), after the intro.
+    try {
+      const n = bands[0].length, W = 200; // 200 frames = 4 s
+      const energy = new Float32Array(n);
+      for (let i = 0; i < n; i++) { let e = 0; for (const b of bands) e += b[i]; energy[i] = e; }
+      const pre = new Float32Array(n + 1);
+      for (let i = 0; i < n; i++) pre[i + 1] = pre[i] + energy[i];
+      const avg = (a, b) => (pre[Math.min(n, b)] - pre[Math.max(0, a)]) / Math.max(1, Math.min(n, b) - Math.max(0, a));
+      let best = -1, bestI = -1;
+      for (let i = Math.floor(n * 0.12); i < n * 0.85; i += 10) {
+        const jump = avg(i, i + W) - avg(i - W, i);
+        const score = jump + avg(i, i + W) * 0.25;
+        if (score > best) { best = score; bestI = i; }
+      }
+      if (bestI > 0) drops.set(id, bestI / 50);
+      while (drops.size > 20) drops.delete(drops.keys().next().value);
+    } catch { /* no drop */ }
+    dropSubs.forEach((f) => f());
     while (spectra.size > 3) spectra.delete(spectra.keys().next().value);
     const n = Math.floor(data.length / FRAME);
     const energy = new Float32Array(n);
