@@ -1059,3 +1059,9 @@ h1.big { font-size: 36px; margin: 22px 0 16px; background: linear-gradient(90deg
 .np-art::before { filter: none !important; will-change: auto; }
 .tb-title { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; background: rgba(20,14,30,.72); }
 .ambient i { animation-duration: 40s; }
+
+/* full-screen bass flash: on the scene layer, no blend mode */
+.np::after { display: none !important; }
+.np-scene::after { content: ''; position: absolute; inset: 0; pointer-events: none; opacity: 0;
+  background: radial-gradient(120% 80% at 50% 35%, color-mix(in srgb, var(--c1) 60%, transparent) 0%, transparent 60%); }
+.np.beat-on .np-scene::after { opacity: calc(var(--kick, 0) * .5 + var(--high, 0) * .12); }

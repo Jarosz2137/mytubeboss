@@ -110,7 +110,7 @@ window.addEventListener('mtb-audio', (e) => {
 
 let lastT = 0;
 const lastV = {};
-function put(st, k, v) { if (Math.abs((lastV[k] ?? -9) - v) < 0.004) return; lastV[k] = v; st.setProperty(k, v.toFixed(3)); }
+function put(st, k, v) { if (Math.abs((lastV[k] ?? -9) - v) < 0.004) return; lastV[k] = v; const s2 = v.toFixed(3); for (const el of targets) el.style.setProperty(k, s2); }
 // ONE clock for every animation: the music is read once per frame here, everything else
 // (visualizer, scene, cover) just gets the result. Full display rate (120 Hz on ProMotion).
 const frameSubs = new Set();
@@ -168,7 +168,14 @@ function loop(now = 0) {
 const sm = { bass: 0, mid: 0, high: 0 };
 let kick = 0;
 
-export function setBeatTarget(el) { target = el; }
+// Vars go only to the layers that actually react (not the whole player), so one bass hit
+// doesn't make iOS restyle every element in the sheet.
+let targets = [];
+export function setBeatTarget(el) {
+  target = el;
+  targets = el ? Array.from(el.querySelectorAll('.np-art, .np-scene, .np-bg, .np-blobs')) : [];
+  for (const k in lastV) delete lastV[k];
+}
 
 // Levels (0..1) for every band at the current playback time, or null if not analysed yet.
 export function bandLevels(ahead = 0) {
@@ -188,8 +195,7 @@ export async function setBeat(on) {
     if (p) analyse(t.id, p.parts, p.mime); else if (t && !envs.has(t.id)) status('złapie od następnego utworu');
     if (!raf) raf = requestAnimationFrame(loop);
   } else {
-    target?.style.setProperty('--pulse', '1');
-    ['--bass', '--mid', '--high', '--kick'].forEach((k) => target?.style.setProperty(k, '0'));
+    for (const el of targets) { el.style.setProperty('--pulse', '1'); ['--bass', '--mid', '--high', '--kick'].forEach((k) => el.style.setProperty(k, '0')); }
     for (const k in lastV) delete lastV[k];
   }
   subs.forEach((f) => f(enabled));

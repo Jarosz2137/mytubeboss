@@ -1125,7 +1125,7 @@ function NowPlaying({ open, onClose, onOpen, sheetRef }) {
   const [, bumpBeat] = useState(0);
   useEffect(() => onBeat((v) => { setBeatState(v); bumpBeat((x) => x + 1); }), []);
   useEffect(() => { restoreBeat(); }, []);
-  useEffect(() => { setBeatTarget(sheet.current); }, [t?.id]);
+  useEffect(() => { setBeatTarget(sheet.current); }, [t?.id, p.mode]);
 
   // Move the single <video> engine into view when in video mode.
   useEffect(() => {
