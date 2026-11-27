@@ -36,7 +36,8 @@ export async function initOta() {
     emit({ remote });
     if (!remote || remote <= BUILD) return emit({ status: 'latest' });
     emit({ status: 'downloading', version: String(remote) });
-    const bundle = await CapacitorUpdater.download({ url: info.url || `${BASE}/bundle.zip`, version: String(remote) });
+    if (!info.checksum) throw new Error('paczka bez sumy kontrolnej');
+    const bundle = await CapacitorUpdater.download({ url: info.url || `${BASE}/bundle.zip`, version: String(remote), checksum: info.checksum });
     await CapacitorUpdater.next({ id: bundle.id }); // applied on next launch / background
     emit({ status: 'ready', id: bundle.id });
   } catch (e) {

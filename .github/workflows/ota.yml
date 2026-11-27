@@ -44,8 +44,9 @@ jobs:
           echo "BUILD=$BUILD" >> "$GITHUB_ENV"
           VITE_BUILD=$BUILD VITE_OTA_REPO=$OTA_REPO npm run build
           (cd dist && zip -qr ../bundle.zip .)
-          printf '{"build":%s,"url":"https://github.com/%s/releases/download/b%s/bundle.zip","commit":"%s"}\n' \
-            "$BUILD" "$OTA_REPO" "$BUILD" "$GITHUB_SHA" > version.json
+          SUM=$(sha256sum bundle.zip | cut -d' ' -f1)
+          printf '{"build":%s,"url":"https://github.com/%s/releases/download/b%s/bundle.zip","checksum":"%s","commit":"%s"}\n' \
+            "$BUILD" "$OTA_REPO" "$BUILD" "$SUM" "$GITHUB_SHA" > version.json
           cat version.json
       - name: Publish release
         if: steps.cfg.outputs.ok == 'true'
