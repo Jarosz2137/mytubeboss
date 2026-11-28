@@ -2,16 +2,24 @@
 // whether anything keeps working in the background (instead of guessing).
 import { audioElement, videoElement } from './player.js';
 
-let frames = 0, probe = null;
-// Frame stats (iOS gives web code no CPU% / RAM numbers - those need the native side in the next IPA;
-// here we measure what the user feels: frame times and main-thread lag).
-let lastF = 0, slowF = 0, worstF = 0;
+let frames = 0, probe = null, raf = 0;
+let lastF = null, slowF = 0, worstF = 0, frameMs = 0, samples = [];
+let visible = !document.hidden, windowStart = performance.now();
 const count = (now) => {
-  frames++;
-  if (lastF && !document.hidden) { const dt = now - lastF; if (dt > 50) slowF++; if (dt > worstF) worstF = dt; }
-  lastF = now; requestAnimationFrame(count);
+  raf = 0;
+  if (!visible || document.hidden) { lastF = null; return; }
+  if (lastF !== null) {
+    const dt = now - lastF;
+    frames++; frameMs += dt;
+    if (dt > 50) slowF++;
+    worstF = Math.max(worstF, dt);
+    samples.push(dt);
+  }
+  lastF = now;
+  raf = requestAnimationFrame(count);
 };
-requestAnimationFrame(count);
+function startFrames() { if (visible && !raf) raf = requestAnimationFrame(count); }
+startFrames();
 
 // What happened recently: every tagged log line ([beat], [prefetch], [SABR], [ota], ...) is remembered
 // for a few seconds, so a spike can say what it happened during.
@@ -35,25 +43,45 @@ let lagSum = 0, lagN = 0, lagMax = 0, expect = performance.now() + 250;
 setInterval(() => {
   const now = performance.now(), lag = Math.max(0, now - expect);
   expect = now + 250;
-  if (document.hidden) return;
+  if (document.hidden || !visible) return;
   lagSum += lag; lagN++; if (lag > lagMax) lagMax = lag;
   if (lag > 120) console.log(`[life] SKOK: wątek zablokowany ${Math.round(lag)} ms, w trakcie: ${during()}`);
 }, 250);
 
 function snapshot(tag) {
   const anims = document.getAnimations?.() || [];
-  const running = anims.filter((a) => a.playState === 'running').length;
+  const active = anims.filter((a) => a.playState === 'running');
+  const running = active.length;
+  const groups = {};
+  for (const a of active) {
+    const name = a.animationName || a.transitionProperty || 'other';
+    groups[name] = (groups[name] || 0) + 1;
+  }
+  const top = Object.entries(groups).sort((a,b) => b[1]-a[1]).slice(0,8).map(([k,v]) => k+':'+v).join(',') || '-';
+  const sceneEl = document.querySelector('.np.open .np-scene');
+  const scene = sceneEl?.querySelector('canvas')?.className.match(/geometry-(\w+)/)?.[1] ||
+    Array.from(sceneEl?.classList || []).find(c => c.startsWith('sc-'))?.slice(3) || '-';
+  const sorted = samples.slice().sort((a,b)=>a-b);
+  const p95 = sorted.length ? Math.round(sorted[Math.ceil(sorted.length*.95)-1]) : 0;
+  const fps = frameMs > 0 ? (frames*1000/frameMs).toFixed(1) : '-';
+  const period = Math.round(performance.now()-windowStart);
   const media = (el) => (el.paused ? 'pauza' : 'gra') + (el.src || el.srcObject ? '' : ' (pusty)');
   const avgLag = lagN ? Math.round(lagSum / lagN) : 0;
   const nodes = document.getElementsByTagName('*').length;
-  console.log(`[life] ${tag}: ukryta=${document.hidden} audio=${media(audioElement)} video=${media(videoElement)} animacje=${running}/${anims.length} fps=${Math.round(frames / 30)} wolne_klatki=${slowF} najgorsza=${Math.round(worstF)}ms lag_śr=${avgLag}ms lag_max=${Math.round(lagMax)}ms elementy=${nodes} lite=${document.documentElement.classList.contains('lite')} ostatnio=${during()}`);
-  frames = 0; slowF = 0; worstF = 0; lagSum = 0; lagN = 0; lagMax = 0;
+  console.log(`[life] ${tag}: ukryta=${document.hidden} audio=${media(audioElement)} video=${media(videoElement)} animacje=${running}/${anims.length} scena=${scene} fps=${fps} okno=${period}ms pomiar_klatek=${Math.round(frameMs)}ms probki=${frames} p95=${p95}ms aktywne=${top} wolne_klatki=${slowF} najgorsza=${Math.round(worstF)}ms lag_śr=${avgLag}ms lag_max=${Math.round(lagMax)}ms elementy=${nodes} lite=${document.documentElement.classList.contains('lite')} ostatnio=${during()}`);
+  frames = 0; slowF = 0; worstF = 0; frameMs = 0; samples = []; lastF = null; windowStart = performance.now(); lagSum = 0; lagN = 0; lagMax = 0;
 }
 
 document.addEventListener('visibilitychange', () => {
+  if (raf) cancelAnimationFrame(raf);
+  raf = 0;
+  lastF = null;
   snapshot(document.hidden ? 'w tle' : 'na wierzchu');
+  visible = !document.hidden;
+  expect = performance.now() + 250;
+  startFrames();
   clearInterval(probe);
   probe = setInterval(() => snapshot(document.hidden ? 'w tle (co 30 s)' : 'na wierzchu (co 30 s)'), 30000);
 });
 ['play', 'pause'].forEach((ev) => audioElement.addEventListener(ev, () => snapshot(`audio ${ev}`)));
-probe = setInterval(() => snapshot('na wierzchu (co 30 s)'), 30000);
+probe = setInterval(() => snapshot(document.hidden ? 'w tle (co 30 s)' : 'na wierzchu (co 30 s)'), 30000);
