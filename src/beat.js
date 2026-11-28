@@ -157,6 +157,17 @@ audioElement.addEventListener('pause', wakeRender);
 function loop(now = 0) {
   raf = 0;
   if ((!enabled && !frameSubs.size) || document.hidden || !document.documentElement.classList.contains('np-open')) { lastT = 0; prevNow = 0; return; }
+  if (audioElement.paused) {
+    lastT = 0; prevNow = 0; prevL = nextL = null; lastKey = '';
+    cur = 1; kick = 0; sm.bass = sm.mid = sm.high = 0;
+    for (const el of targets) {
+      el.style.setProperty('--pulse','1');
+      for (const k of ['--bass','--mid','--high','--kick']) el.style.setProperty(k,'0');
+    }
+    for (const k in lastV) delete lastV[k];
+    frameSubs.forEach(f => f(null, now));
+    return;
+  }
   raf = requestAnimationFrame(loop);
   const fk = Math.min(4, Math.max(0.25, (now - (lastT || now - 16.7)) / 16.7)); // frame-rate independent
   lastT = now;
@@ -219,6 +230,7 @@ export function setBeatTarget(el) {
   target = el;
   targets = el ? Array.from(el.querySelectorAll('.np-art, .np-scene, .np-bg, .np-blobs')) : [];
   for (const k in lastV) delete lastV[k];
+  wakeRender();
 }
 
 // Levels (0..1) for every band at the current playback time, or null if not analysed yet.
@@ -242,6 +254,7 @@ export async function setBeat(on) {
     for (const el of targets) { el.style.setProperty('--pulse', '1'); ['--bass', '--mid', '--high', '--kick'].forEach((k) => el.style.setProperty(k, '0')); }
     for (const k in lastV) delete lastV[k];
   }
+  wakeRender();
   subs.forEach((f) => f(enabled));
 }
 

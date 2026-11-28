@@ -7,7 +7,7 @@ import { Haptics, ImpactStyle } from '@capacitor/haptics';
 import { useCoverColors } from './colors.js';
 import { getLogs, clearLogs } from './debuglog.js';
 import {
-  usePlayer, current, playList, addNext, jump, toggle, next, prev, seek, setMode, videoElement,
+  usePlayer, current, playList, addNext, jump, toggle, next, prev, seek, setMode, videoElement, audioElement,
   cycleRepeat, toggleShuffle, toggleLike, useTime, togglePip, pickOutput, dismissLoginPrompt, pipIfVideo, RATES, setRate, setSleep,
 } from './player.js';
 import { setBeat, beatOn, onBeat, setBeatTarget, restoreBeat, beatStatus, bandLevels, onFrame, dropTime, onDrop } from './beat.js';
@@ -902,6 +902,7 @@ function Visualizer() {
     const t0 = performance.now();
     const off = onFrame((L, now) => {
       if (!document.documentElement.classList.contains('np-open')) return; // player closed: nobody sees the bars
+      const paused = audioElement.paused;
       const mid = (N - 1) / 2;
       for (let k = 0; k < N; k++) {
         const d = Math.abs(k - mid) / mid; // 0 centre .. 1 edge
@@ -911,7 +912,7 @@ function Visualizer() {
           const v = L[a] * (1 - f) + (L[a + 1] ?? L[a]) * f;
           target = Math.max(0.08, v * (1 - d * 0.35));
         }
-        level[k] += (target - level[k]) * (target > level[k] ? 0.3 : 0.07);
+        level[k] = paused ? 0.08 : level[k] + (target - level[k]) * (target > level[k] ? 0.3 : 0.07);
         const v = level[k].toFixed(2);
         if (bars[k]._v !== v) { bars[k]._v = v; bars[k].style.transform = `scaleY(${v})`; }
       }
@@ -1070,6 +1071,7 @@ function GeometryScene({ kind, id }) {
       canvas.width = Math.max(1, Math.round(w * ratio));
       canvas.height = Math.max(1, Math.round(h * ratio));
       drawn = false;
+      window.dispatchEvent(new Event('mtb-render-wake'));
     };
     const observer = new ResizeObserver(resize);
     observer.observe(canvas); resize();
