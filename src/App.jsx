@@ -1540,14 +1540,12 @@ function NowPlaying({ open, onClose, onOpen, sheetRef }) {
         <Visualizer />
         <NpTools />
         <Scrubber />
-        <div className="np-controls">
-          <button className={`icon-btn small-ctl ${p.shuffle ? 'lit' : ''}`} onClick={() => { tap(); toggleShuffle(); }}>{Icon.shuffle}</button>
-          <button className="icon-btn large" onClick={() => { tap(); setSlide('from-left'); prev(); }}>{Icon.prev}</button>
-          <button className="icon-btn huge pop" key={p.playing ? 'pa' : 'pl'} onClick={() => { tap(ImpactStyle.Medium); toggle(); }}>{p.loading ? <span className="spin big" /> : p.playing ? Icon.pause : Icon.play}</button>
-          <button className="icon-btn large" onClick={() => { tap(); setSlide('from-right'); next(); }}>{Icon.next}</button>
-          <button className={`icon-btn small-ctl ${p.repeat !== 'off' ? 'lit' : ''}`} onClick={() => { tap(); cycleRepeat(); }}>
-            {Icon.repeat}{p.repeat === 'one' && <b className="rep1">1</b>}
-          </button>
+        <div className="np-controls np-transport" role="group" aria-label="Sterowanie muzyką">
+          <button className={'transport-key secondary'+(p.shuffle?' lit':'')} aria-label="Losowo" aria-pressed={p.shuffle} onClick={() => { tap(); toggleShuffle(); }}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h3c5 0 7 12 12 12h3m-4-4 4 4-4 4M3 18h3c2 0 4-3 5-6s3-6 7-6h3m-4-4 4 4-4 4"/></svg></button>
+          <button className="transport-key skip" aria-label="Poprzedni utwór" onClick={() => { tap(); setSlide('from-left'); prev(); }}><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M7 6v20M25 6 11 16l14 10z"/></svg></button>
+          <button className="transport-key transport-main" aria-label={p.playing?'Pauza':'Odtwórz'} onClick={() => { tap(ImpactStyle.Medium); toggle(); }}>{p.loading ? <span className="spin big" /> : <svg viewBox="0 0 32 32" aria-hidden="true">{p.playing?<><path d="M11 7v18M21 7v18"/></>:<path d="m11 6 15 10-15 10z"/>}</svg>}</button>
+          <button className="transport-key skip" aria-label="Następny utwór" onClick={() => { tap(); setSlide('from-right'); next(); }}><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M25 6v20M7 6l14 10L7 26z"/></svg></button>
+          <button className={'transport-key secondary'+(p.repeat!=='off'?' lit':'')} aria-label={p.repeat==='one'?'Powtarzaj utwór':p.repeat==='all'?'Powtarzaj kolejkę':'Powtarzanie wyłączone'} aria-pressed={p.repeat!=='off'} onClick={() => { tap(); cycleRepeat(); }}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m17 2 4 4-4 4M21 6H7a4 4 0 0 0-4 4m4 12-4-4 4-4M3 18h14a4 4 0 0 0 4-4"/></svg>{p.repeat==='one'&&<b className="transport-one">1</b>}</button>
         </div>
       </div>
     </div>
@@ -1762,9 +1760,9 @@ export default function App() {
       </main>
       <MiniPlayer hidden={npOpen} onDrag={dragSheet} onDragEnd={endDragSheet} />
       <nav className="tabs">
-        <button className={tab === 'home' ? 'on' : ''} onClick={() => switchTab('home')}>{Icon.home}<span>Główna</span></button>
-        <button className={tab === 'search' ? 'on' : ''} onClick={() => switchTab('search')}>{Icon.search}<span>Szukaj</span></button>
-        <button className={tab === 'library' ? 'on' : ''} onClick={() => switchTab('library')}>{Icon.lib}<span>Biblioteka</span></button>
+        <button className={tab === 'home' ? 'on' : ''} onClick={() => switchTab('home')}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 10 9-7 9 7v10H3zM9 20v-6h6v6"/></svg><span>Główna</span></button>
+        <button className={tab === 'search' ? 'on' : ''} onClick={() => switchTab('search')}><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg><span>Szukaj</span></button>
+        <button className={tab === 'library' ? 'on' : ''} onClick={() => switchTab('library')}><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="4" height="16" rx="1"/><path d="M12 4v16m4-15 4 14"/></svg><span>Biblioteka</span></button>
       </nav>
       <OtaPill />
       <CarMode />
