@@ -899,6 +899,7 @@ function Visualizer() {
     const level = new Float32Array(N);
     const t0 = performance.now();
     const off = onFrame((L, now) => {
+      if (!document.documentElement.classList.contains('np-open')) return; // player closed: nobody sees the bars
       const mid = (N - 1) / 2;
       for (let k = 0; k < N; k++) {
         const d = Math.abs(k - mid) / mid; // 0 centre .. 1 edge
@@ -1126,6 +1127,8 @@ function NowPlaying({ open, onClose, onOpen, sheetRef }) {
   useEffect(() => onBeat((v) => { setBeatState(v); bumpBeat((x) => x + 1); }), []);
   useEffect(() => { restoreBeat(); }, []);
   useEffect(() => { setBeatTarget(sheet.current); }, [t?.id, p.mode]);
+  // Only one screen animates at a time: the player when open, the app behind it otherwise.
+  useEffect(() => { document.documentElement.classList.toggle('np-open', !!open); }, [open]);
 
   // Move the single <video> engine into view when in video mode.
   useEffect(() => {

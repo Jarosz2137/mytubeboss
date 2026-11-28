@@ -1074,3 +1074,7 @@ h1.big { font-size: 36px; margin: 22px 0 16px; background: linear-gradient(90deg
 
 /* app hidden -> nothing animates */
 .bg-idle *, .bg-idle *::before, .bg-idle *::after { animation-play-state: paused !important; transition: none !important; }
+
+/* only the visible screen animates: player closed -> its scene/cover/bars freeze; player open -> the app behind it freezes */
+html:not(.np-open) .np *, html:not(.np-open) .np *::before, html:not(.np-open) .np *::after { animation-play-state: paused !important; }
+html.np-open .scroller *, html.np-open .ambient * { animation-play-state: paused !important; }
