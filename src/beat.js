@@ -146,11 +146,18 @@ function put(st, k, v) { if (Math.abs((lastV[k] ?? -9) - v) < 0.004) return; las
 const frameSubs = new Set();
 const SAMPLE_MS = 1000 / 30;
 let prevL = null, nextL = null, readAt = 0, blend = [], lastKey = '', slow = 0, good = 0, prevNow = 0;
-export function onFrame(f) { frameSubs.add(f); if (!raf) raf = requestAnimationFrame(loop); return () => frameSubs.delete(f); }
+function wakeRender() {
+  if (!raf && !document.hidden && document.documentElement.classList.contains('np-open') && (enabled || frameSubs.size)) raf = requestAnimationFrame(loop);
+}
+export function onFrame(f) { frameSubs.add(f); wakeRender(); return () => frameSubs.delete(f); }
+window.addEventListener('mtb-render-wake', wakeRender);
+document.addEventListener('visibilitychange', wakeRender);
+audioElement.addEventListener('play', wakeRender);
+audioElement.addEventListener('pause', wakeRender);
 function loop(now = 0) {
-  if (!enabled && !frameSubs.size) { raf = 0; return; }
+  raf = 0;
+  if ((!enabled && !frameSubs.size) || document.hidden || !document.documentElement.classList.contains('np-open')) { lastT = 0; prevNow = 0; return; }
   raf = requestAnimationFrame(loop);
-  if (document.hidden || !document.documentElement.classList.contains('np-open')) { lastT = 0; prevNow = 0; return; }
   const fk = Math.min(4, Math.max(0.25, (now - (lastT || now - 16.7)) / 16.7)); // frame-rate independent
   lastT = now;
   // Music is sampled at 30 Hz (one step ahead, so interpolation adds no lag);
@@ -230,7 +237,7 @@ export async function setBeat(on) {
     const t = current();
     const p = t && pending.get(t.id);
     if (p) analyse(t.id, p.parts, p.mime); else if (t && !envs.has(t.id)) status('złapie od następnego utworu');
-    if (!raf) raf = requestAnimationFrame(loop);
+    wakeRender();
   } else {
     for (const el of targets) { el.style.setProperty('--pulse', '1'); ['--bass', '--mid', '--high', '--kick'].forEach((k) => el.style.setProperty(k, '0')); }
     for (const k in lastV) delete lastV[k];

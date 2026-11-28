@@ -1176,6 +1176,48 @@ function LyricsPanel({ t }) {
   );
 }
 
+// Bake the expensive full-screen blur once per artwork, not on every composite.
+const backdropCache = new Map();
+function BgBlur({ src }) {
+  const ref = useRef(null);
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    const canvas = ref.current;
+    const ctx = canvas?.getContext('2d');
+    if (!ctx || !src) return;
+    let alive = true;
+    const cached = backdropCache.get(src);
+    if (cached) { ctx.drawImage(cached, 0, 0); setReady(true); return; }
+    const image = new Image();
+    image.onload = () => {
+      if (!alive) return;
+      const w = image.naturalWidth, h = image.naturalHeight;
+      if (!w || !h) return;
+      const tile = document.createElement('canvas');
+      tile.width = tile.height = 48;
+      const c = tile.getContext('2d');
+      if (!c) return;
+      const scale = 48 / Math.min(w,h);
+      c.drawImage(image,(48-w*scale)/2,(48-h*scale)/2,w*scale,h*scale);
+      // Repeated low-resolution resampling produces a soft texture without live CSS blur.
+      const small = document.createElement('canvas');
+      small.width = small.height = 6;
+      const sc = small.getContext('2d');
+      if (!sc) return;
+      sc.drawImage(tile,0,0,6,6);
+      c.imageSmoothingQuality = 'high';
+      c.drawImage(small,0,0,48,48);
+      ctx.drawImage(tile,0,0);
+      backdropCache.set(src,tile);
+      while (backdropCache.size > 12) backdropCache.delete(backdropCache.keys().next().value);
+      setReady(true);
+    };
+    image.src = src;
+    return () => { alive = false; image.onload = null; };
+  }, [src]);
+  return <div className={'np-bg'+(ready?' baked':'')} style={!ready && src ? {backgroundImage:`url(${src})`} : undefined}><canvas ref={ref} width={48} height={48} /></div>;
+}
+
 function NowPlaying({ open, onClose, onOpen, sheetRef }) {
   const p = usePlayer();
   const t = current();
@@ -1197,7 +1239,7 @@ function NowPlaying({ open, onClose, onOpen, sheetRef }) {
   useEffect(() => { restoreBeat(); }, []);
   useEffect(() => { setBeatTarget(sheet.current); }, [t?.id, p.mode]);
   // Only one screen animates at a time: the player when open, the app behind it otherwise.
-  useEffect(() => { document.documentElement.classList.toggle('np-open', !!open); }, [open]);
+  useEffect(() => { document.documentElement.classList.toggle('np-open', !!open); window.dispatchEvent(new Event('mtb-render-wake')); }, [open]);
 
   // Move the single <video> engine into view when in video mode.
   useEffect(() => {
@@ -1309,7 +1351,7 @@ function NowPlaying({ open, onClose, onOpen, sheetRef }) {
       className={`np mode-${p.mode} ${open ? 'open' : ''} ${p.playing ? 'is-playing' : ''} ${beat ? 'beat-on' : ''}`}
       onTouchStart={onStart} onTouchMove={onMove} onTouchEnd={onEnd} onTouchCancel={onEnd}
     >
-      <div className="np-bg" key={'bg' + t.id} style={{ backgroundImage: t.thumb ? `url(${t.thumb})` : undefined }} />
+      <BgBlur key={'bg' + t.id} src={t.thumb} />
       <div className="np-blobs"><i className="b1" /><i className="b2" /><i className="b3" /></div>
       <div className="np-grain" />
       <Scene id={t.id} />
