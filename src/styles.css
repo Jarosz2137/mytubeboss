@@ -529,7 +529,8 @@ h2 { font-size: 21px; font-weight: 700; margin: 26px 0 10px; letter-spacing: -0.
 .mq-item { flex: none; }
 .mq.run { -webkit-mask: linear-gradient(90deg, #000 calc(100% - 24px), transparent); mask: linear-gradient(90deg, #000 calc(100% - 24px), transparent); }
 .mq.run .mq-item { padding-right: 48px; }
-.mq.run .mq-track { animation: mq var(--mq-d) linear 1.8s infinite; }
+.mq.run .mq-track { animation: mq var(--mq-d) linear 1.8s infinite; animation-play-state: paused; }
+.mq.run.mq-visible .mq-track { animation-play-state: running; }
 @keyframes mq { 0%, 12% { transform: translateX(0); } 100% { transform: translateX(calc(-1 * var(--mq-w))); } }
 
 /* thin neon bar while a view refreshes in the background */
@@ -1071,7 +1072,7 @@ h1.big { font-size: 36px; margin: 22px 0 16px; background: linear-gradient(90deg
 .np.beat-on .np-scene::after { opacity: calc(var(--kick, 0) * .5 + var(--high, 0) * .12); }
 
 /* restore GPU layers (an earlier cleanup stripped these by accident -> everything repainted every frame) */
-.np, .np-strip, .np-sway, .np-grid, .viz i, .mq.run .mq-track, .shelf.loop .card .cover { will-change: transform; }
+.np, .np-strip, .np-sway, .np-grid, .viz i, .mq.run.mq-visible .mq-track { will-change: transform; }
 /* the pulsing cover gets its own layer, so scale is compositor-only: shadow + reflection are drawn once */
 .np-strip .np-cover { will-change: transform, scale; }
 .np-scene { will-change: opacity; }
@@ -1099,3 +1100,6 @@ html[data-energy="3"] .np-scene *, html[data-energy="3"] .np-scene, html[data-en
 .np-bg.baked { filter:saturate(1.8) brightness(.55); }
 .np-bg.baked canvas { display:block; }
 html.np-open .mini * { animation-play-state:paused !important; }
+
+/* Avoid keeping invisible text and shelf covers permanently promoted. */
+html.np-open .scroller .mq-track, html.bg-idle .mq-track { will-change: auto; }

@@ -22,6 +22,10 @@ import { loadIndex, onOffline, offlineState, isDownloaded, isQueued, downloadTra
 
 const tap = (style = ImpactStyle.Light) => { Haptics.impact({ style }).catch(() => {}); };
 
+// Share visibility tracking: offscreen marquees need neither animation nor a GPU layer.
+const marqueeVisibility = typeof IntersectionObserver !== 'undefined' ? new IntersectionObserver(entries => {
+  for (const e of entries) e.target.classList.toggle('mq-visible', e.isIntersecting);
+}) : null;
 // Long text scrolls like a car-radio display instead of being cut off.
 const Marquee = memo(function Marquee({ text }) {
   const box = useRef(null);
@@ -34,10 +38,14 @@ const Marquee = memo(function Marquee({ text }) {
       const w = i.scrollWidth - (parseFloat(getComputedStyle(i).paddingRight) || 0);
       setRun(w - b.clientWidth > 2 ? Math.ceil(w) : 0);
     };
+    const node = box.current;
     check();
     const ro = new ResizeObserver(check);
-    ro.observe(box.current);
-    return () => ro.disconnect();
+    ro.observe(node);
+    if (marqueeVisibility) marqueeVisibility.observe(node);
+    else node.classList.add('mq-visible');
+    return () => { ro.disconnect(); marqueeVisibility?.unobserve(node); };
+
   }, [text]);
   const dur = run ? Math.max(8, (run + 48) / 32) : 0; // ~32 px/s
   return (
@@ -228,11 +236,12 @@ function LoopShelf({ items, onOpen }) {
         else if (el.scrollLeft > w * 1.5) el.scrollLeft -= w;
       }
       const box = el.getBoundingClientRect();
+      if (!box.width || !box.height) return;
       const mid = box.left + box.width / 2;
-      for (const c of el.children) {
-        const r = c.getBoundingClientRect();
+      // Batch layout reads before writes, avoiding forced layout per card.
+      const cards = Array.from(el.children, c => ({cov:c.firstChild,r:c.getBoundingClientRect()}));
+      for (const {cov,r} of cards) {
         const d = Math.max(-1.6, Math.min(1.6, (r.left + r.width / 2 - mid) / box.width));
-        const cov = c.firstChild;
         if (cov) {
           cov.style.transform = `perspective(600px) rotateY(${d * -14}deg) scale(${1 - Math.abs(d) * 0.1})`;
           cov.style.opacity = String(1 - Math.abs(d) * 0.3);
