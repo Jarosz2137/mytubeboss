@@ -360,6 +360,12 @@ async function fetchHome(filter, key) {
       sections.push(sec);
     }
     console.info('[home] page', page + 1, 'sections', sections.length);
+    const previous = cached?.[page] || [];
+    for (let i = offset; i < sections.length; i++) {
+      const sec = sections[i];
+      const old = previous.find(s => s.kind === sec.kind && s.title === sec.title && JSON.stringify(s) === JSON.stringify(sec));
+      if (old) sections[i] = old;
+    }
     pageSections.push(sections.slice(offset));
     if (page === pages - 1 || !feed.has_continuation) break;
     await new Promise(resolve => setTimeout(resolve, 0));

@@ -4,7 +4,7 @@ import { useEffect, useLayoutEffect, useRef, useState, useCallback, memo } from 
 import * as yt from './yt.js';
 import { Preferences } from '@capacitor/preferences';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
-import { useCoverColors } from './colors.js';
+import { useCoverColors, coverColors } from './colors.js';
 import { getLogs, clearLogs } from './debuglog.js';
 import {
   usePlayer, current, playList, addNext, jump, toggle, next, prev, seek, setMode, videoElement, audioElement,
@@ -348,7 +348,7 @@ const feedVisibilityCallbacks = new WeakMap();
 const feedVisibility = typeof IntersectionObserver !== 'undefined' ? new IntersectionObserver(entries => {
   for (const e of entries) feedVisibilityCallbacks.get(e.target)?.(e.isIntersecting);
 }, {rootMargin:'700px 0px'}) : null;
-function FeedSection({ sec, onOpen, eager }) {
+const FeedSection = memo(function FeedSection({ sec, onOpen, eager }) {
   const ref = useRef(null);
   const height = useRef(0);
   const [visible,setVisible] = useState(eager || !feedVisibility);
@@ -371,7 +371,7 @@ function FeedSection({ sec, onOpen, eager }) {
   return <div ref={ref} style={visible ? undefined : {minHeight:height.current || 280, display:'flow-root'}}>
     {visible && (sec.kind === 'quick' ? <QuickPicks s={sec} /> : sec.kind === 'again' ? <ListenAgain s={sec} onOpen={onOpen} /> : <Section s={sec} onOpen={onOpen} />)}
   </div>;
-}
+});
 
 function HomeView({ onOpen, fresh }) {
   const [chip, setChip] = useState(null);
@@ -1718,6 +1718,12 @@ export default function App() {
 
   const top = stack[stack.length - 1];
   const curThumb = usePlayer(s => s.queue[s.index]?.thumb);
+  const nextThumb = usePlayer(s => s.queue[s.index + 1]?.thumb);
+  useEffect(() => {
+    if (!nextThumb || nextThumb === curThumb) return;
+    const timer = setTimeout(() => { if (!document.hidden && energyLevel() < 2) coverColors(nextThumb); }, 1800);
+    return () => clearTimeout(timer);
+  }, [nextThumb, curThumb]);
   const cols = useCoverColors(curThumb);
   const vars = cols ? { '--c1': cols[0], '--c2': cols[1], '--c3': cols[2] } : {};
 

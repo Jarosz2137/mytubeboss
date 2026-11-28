@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { imageObjectUrl } from './yt.js';
 
 const cache = new Map();
+const resolved = new Map();
 
 function rgbToHsv(r, g, b) {
   const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min;
@@ -54,18 +55,18 @@ async function extract(url) {
 export function coverColors(url) {
   if (!url) return Promise.resolve(null);
   if (cache.has(url)) { const hit=cache.get(url); cache.delete(url); cache.set(url,hit); return hit; }
-  const job=extract(url).catch(()=>null);
+  const job=extract(url).then(cols => { if (cache.get(url) === job) resolved.set(url, cols); return cols; }).catch(()=>{ if(cache.get(url)===job) cache.delete(url); return null; });
   cache.set(url,job);
-  while(cache.size>128) cache.delete(cache.keys().next().value);
+  while(cache.size>128) { const key=cache.keys().next().value; cache.delete(key); resolved.delete(key); }
   return job;
 }
 
 export function useCoverColors(url) {
-  const [cols, setCols] = useState(null);
+  const [cols, setCols] = useState(() => resolved.get(url) || null);
   useEffect(() => {
     let alive = true;
     coverColors(url).then((c) => alive && setCols(c));
     return () => { alive = false; };
   }, [url]);
-  return cols;
+  return resolved.get(url) || cols;
 }
