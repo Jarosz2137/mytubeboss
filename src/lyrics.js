@@ -1,57 +1,73 @@
-// Lyrics: synced (LRC) from LRCLIB (free, no key), fallback to YouTube Music's plain lyrics.
+// Prefer verified synced lyrics; plain results are only a short-lived fallback.
 import { CapacitorHttp } from '@capacitor/core';
 import * as yt from './yt.js';
 
-const cache = new Map();
-
+const cache = new Map(), inflight = new Map();
+const clean = s => String(s || '').replace(/\s*[([].*?(feat|ft\.|official|video|audio|remaster|lyric|prod)[^)\]]*[)\]]/gi, '').trim();
+const key = s => clean(s).normalize('NFKC').toLowerCase().replace(/[^\p{L}\p{N}]+/gu,' ').trim();
 function parseLrc(lrc) {
+  const offset = Number((lrc || '').match(/\[offset:([+-]?\d+)\]/i)?.[1] || 0)/1000;
   const out = [];
   for (const line of (lrc || '').split('\n')) {
-    const m = [...line.matchAll(/\[(\d+):(\d+(?:\.\d+)?)\]/g)];
-    const text = line.replace(/\[[^\]]*\]/g, '').trim();
-    for (const t of m) out.push({ t: Number(t[1]) * 60 + Number(t[2]), text });
+    const stamps = [...line.matchAll(/\[(\d+):(\d+(?:\.\d+)?)\]/g)];
+    const text = line.replace(/\[[^\]]*\]/g,'').trim();
+    for (const t of stamps) out.push({t:Math.max(0,Number(t[1])*60+Number(t[2])+offset),text});
   }
-  return out.sort((a, b) => a.t - b.t);
+  return out.sort((a,b)=>a.t-b.t);
 }
-
-const clean = (s) => (s || '').replace(/\s*[([].*?(feat|ft\.|official|video|audio|remaster|lyric|prod)[^)\]]*[)\]]/gi, '').trim();
-
-const inflight = new Map();
+async function request(path, params) {
+  const r = await CapacitorHttp.get({url:'https://lrclib.net/api/'+path+'?'+new URLSearchParams(params), headers:{'User-Agent':'MyTubeBoss/1.0'}, responseType:'json', connectTimeout:5000,readTimeout:5000});
+  if(r.status>=400)return null;
+  return typeof r.data==='string'?JSON.parse(r.data||'null'):r.data;
+}
+function result(d) {
+  const lines=parseLrc(d?.syncedLyrics);
+  if(lines.length && lines.some(l=>l.text))return {synced:true,lines,source:'LRCLIB'};
+  if(d?.plainLyrics)return {synced:false,lines:d.plainLyrics.split('\n').map(text=>({text})),source:'LRCLIB'};
+  return null;
+}
 export function getLyrics(track) {
-  if (!track) return Promise.resolve(null);
-  if (cache.has(track.id)) return Promise.resolve(cache.get(track.id));
-  if (inflight.has(track.id)) return inflight.get(track.id);
-  const job=fetchLyrics(track).finally(()=>inflight.delete(track.id));
-  inflight.set(track.id,job); return job;
+  if(!track)return Promise.resolve(null);
+  const id=track.id, hit=cache.get(id);
+  if(hit && hit.until>Date.now())return Promise.resolve(hit.value);
+  if(inflight.has(id))return inflight.get(id);
+  const job=fetchLyrics(track).then(value=>{
+    cache.set(id,{value,until:Date.now()+(value?.synced?86400000:120000)});
+    while(cache.size>100)cache.delete(cache.keys().next().value);
+    console.info('[lyrics]',id,value?.source||'none',value?.synced?'synced':'plain/unavailable',value?.lines.length||0);
+    return value;
+  }).finally(()=>inflight.delete(id));
+  inflight.set(id,job);return job;
 }
 async function fetchLyrics(track) {
-  if (!track) return null;
-  if (cache.has(track.id)) return cache.get(track.id);
-  const artist = clean((track.subtitle || '').split(',')[0]);
-  const title = clean(track.title);
-  let res = null;
+  const title=clean(track.title);
+  const parts=String(track.subtitle||'').split(' · ').filter(x=>! /^(utwór|song|video|teledysk|album|single)$/i.test(x.trim()));
+  const artist=clean(track.artists?.find(a=>a?.name)?.name || (parts[0]||'').split(',')[0]);
+  const duration=Number(track.duration)||0;
+  const params={track_name:title,artist_name:artist};
+  let fallback=null;
   try {
-    const q = new URLSearchParams({ artist_name: artist, track_name: title });
-    if (track.duration) q.set('duration', String(Math.round(track.duration)));
-    let r = await CapacitorHttp.get({ url: `https://lrclib.net/api/get?${q}`, headers: { 'User-Agent': 'MyTubeBoss/1.0' }, responseType: 'json' });
-    let d = typeof r.data === 'string' ? JSON.parse(r.data || 'null') : r.data;
-    if (!d || r.status >= 400) {
-      r = await CapacitorHttp.get({ url: `https://lrclib.net/api/search?${new URLSearchParams({ q: `${artist} ${title}` })}`, headers: { 'User-Agent': 'MyTubeBoss/1.0' }, responseType: 'json' });
-      const list = typeof r.data === 'string' ? JSON.parse(r.data || '[]') : r.data;
-      d = Array.isArray(list) ? (list.find((x) => x.syncedLyrics) || list[0]) : null;
-    }
-    if (d?.syncedLyrics) res = { synced: true, lines: parseLrc(d.syncedLyrics), source: 'LRCLIB' };
-    else if (d?.plainLyrics) res = { synced: false, lines: d.plainLyrics.split('\n').map((text) => ({ text })), source: 'LRCLIB' };
-  } catch (e) { console.warn('[lyrics] lrclib', e?.message); }
-  if (!res) {
-    try {
-      const ytm = await yt.getYT();
-      const l = await ytm.music.getLyrics(track.id);
-      const text = yt.txt(l?.description);
-      if (text) res = { synced: false, lines: text.split('\n').map((t) => ({ text: t })), source: 'YouTube Music' };
-    } catch (e) { console.warn('[lyrics] yt', e?.message); }
-  }
-  cache.set(track.id, res);
-  while(cache.size>100) cache.delete(cache.keys().next().value);
-  return res;
+    const d=await request('get',duration?{...params,duration:String(Math.round(duration))}:params);
+    const v=result(d);
+    if(v?.synced)return v;
+    fallback=v;
+  }catch(e){console.warn('[lyrics] exact',e?.message);}
+  try {
+    const list=await request('search',params);
+    const matches=(Array.isArray(list)?list:[]).filter(d=>{
+      if(key(d.trackName)!==key(title))return false;
+      const names=key(d.artistName), target=key(artist);
+      if(!target||!(names===target||names.startsWith(target+' ')))return false;
+      return !duration || !d.duration || Math.abs(d.duration-duration)<=5;
+    }).sort((a,b)=>Math.abs((a.duration||duration)-duration)-Math.abs((b.duration||duration)-duration));
+    for(const d of matches){const v=result(d);if(v?.synced)return v;if(!fallback&&v)fallback=v;}
+  }catch(e){console.warn('[lyrics] search',e?.message);}
+  if(fallback)return fallback;
+  try{
+    const ytm=await yt.getYT();
+    const l=await ytm.music.getLyrics(track.id);
+    const text=yt.txt(l?.description);
+    if(text)return {synced:false,lines:text.split('\n').map(text=>({text})),source:'YouTube Music'};
+  }catch(e){console.warn('[lyrics] yt',e?.message);}
+  return null;
 }
