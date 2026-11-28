@@ -1293,7 +1293,7 @@ function NowPlaying({ open, onClose, onOpen, sheetRef }) {
   const [, bumpBeat] = useState(0);
   useEffect(() => onBeat((v) => { setBeatState(v); bumpBeat((x) => x + 1); }), []);
   useEffect(() => { restoreBeat(); }, []);
-  useEffect(() => { setBeatTarget(sheet.current); }, [t?.id, p.mode]);
+  useLayoutEffect(() => { setBeatTarget(sheet.current); }, [t?.id, p.mode, open, showLyrics, showQueue]);
   // Only one screen animates at a time: the player when open, the app behind it otherwise.
   useEffect(() => { document.documentElement.classList.toggle('np-open', !!open); window.dispatchEvent(new Event('mtb-render-wake')); }, [open]);
 
