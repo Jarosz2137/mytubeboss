@@ -1212,3 +1212,7 @@ html.feed-scrolling .feed-section .mq-track { animation-play-state:paused!import
 .tabs button .nav-signature { stroke:currentColor; }
 .tabs button.on .nav-signature { stroke:var(--c1,#fff); }
 @media (orientation:landscape) { .tabs button svg { width:22px;height:22px; } }
+
+/* Wrapped: reserve the back-button lane, keep the heading fully visible. */
+.wr-kicker { min-height:38px; display:flex; align-items:center; padding-left:42px; margin-top:0; }
+.wr-hero > .empty-note { padding:0; margin:12px 0 18px; font-size:12px; text-align:left; line-height:1.45; }
