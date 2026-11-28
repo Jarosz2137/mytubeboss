@@ -109,6 +109,7 @@ async function analyseNow(id, parts, mime) {
     const p = sorted[Math.floor(sorted.length * 0.97)] || 1e-6;
     for (let i = 0; i < n; i++) env[i] = Math.min(1, env[i] / p);
     envs.set(id, env);
+    pending.delete(id);
     while (envs.size > 3) envs.delete(envs.keys().next().value);
     console.info('[beat] analysed', id, n, 'frames');
     if (current()?.id === id) status('');
@@ -122,6 +123,7 @@ async function analyseNow(id, parts, mime) {
 const pending = new Map();
 window.addEventListener('mtb-audio', (e) => {
   const { id, parts, mime } = e.detail || {};
+  if (!id || envs.has(id)) return;
   pending.set(id, { parts, mime });
   while (pending.size > 3) pending.delete(pending.keys().next().value);
   // In the background nobody sees the animations: don't burn CPU, analyse when the app comes back.

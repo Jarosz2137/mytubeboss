@@ -16,7 +16,15 @@ function parseLrc(lrc) {
 
 const clean = (s) => (s || '').replace(/\s*[([].*?(feat|ft\.|official|video|audio|remaster|lyric|prod)[^)\]]*[)\]]/gi, '').trim();
 
-export async function getLyrics(track) {
+const inflight = new Map();
+export function getLyrics(track) {
+  if (!track) return Promise.resolve(null);
+  if (cache.has(track.id)) return Promise.resolve(cache.get(track.id));
+  if (inflight.has(track.id)) return inflight.get(track.id);
+  const job=fetchLyrics(track).finally(()=>inflight.delete(track.id));
+  inflight.set(track.id,job); return job;
+}
+async function fetchLyrics(track) {
   if (!track) return null;
   if (cache.has(track.id)) return cache.get(track.id);
   const artist = clean((track.subtitle || '').split(',')[0]);
@@ -44,5 +52,6 @@ export async function getLyrics(track) {
     } catch (e) { console.warn('[lyrics] yt', e?.message); }
   }
   cache.set(track.id, res);
+  while(cache.size>100) cache.delete(cache.keys().next().value);
   return res;
 }

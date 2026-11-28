@@ -53,8 +53,11 @@ async function extract(url) {
 
 export function coverColors(url) {
   if (!url) return Promise.resolve(null);
-  if (!cache.has(url)) cache.set(url, extract(url).catch(() => null));
-  return cache.get(url);
+  if (cache.has(url)) { const hit=cache.get(url); cache.delete(url); cache.set(url,hit); return hit; }
+  const job=extract(url).catch(()=>null);
+  cache.set(url,job);
+  while(cache.size>128) cache.delete(cache.keys().next().value);
+  return job;
 }
 
 export function useCoverColors(url) {

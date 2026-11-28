@@ -235,6 +235,7 @@ async function load(startAt = 0) {
   const track = current();
   if (!track) return;
   const token = ++loadToken;
+  suppressErrors = true;
   releaseMedia();
   pruneDownloads();
   const mode = state.mode;
@@ -266,6 +267,7 @@ async function load(startAt = 0) {
     }
     // 2) SABR streamed into MediaSource (starts after a few seconds of audio)
     for (const sc of ['WEB', 'MWEB']) {
+      if (token !== loadToken) return;
       let ctl = null;
       try {
         const r = await sharedSabr(track.id, {
@@ -315,6 +317,7 @@ async function load(startAt = 0) {
   }
 
   // 3) HLS (music videos, or the linked video of an album track)
+  if (token !== loadToken) return;
   try {
     const hls = await hlsUrl(track.id);
     if (token !== loadToken) return;
@@ -323,6 +326,7 @@ async function load(startAt = 0) {
   } catch (e) {
     log.push('HLS: ' + String(e?.message || e).slice(0, 80));
   }
+  if (token !== loadToken) return;
   try {
     const cid = await counterpartId(track.id);
     if (token !== loadToken) return;
