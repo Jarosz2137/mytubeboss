@@ -62,10 +62,10 @@ const Marquee = memo(function Marquee({ text }) {
   );
 });
 
-function Wordmark({ size = 'md' }) {
+function Wordmark({ size = 'md', showEgzey = true }) {
   return (
-    <div className={`wm wm-${size}`} aria-label="Egzey MyTube Boss">
-      <span className="wm-egzey">EGZEY</span>
+    <div className={`wm wm-${size}`} aria-label={showEgzey ? "Egzey MyTube Boss" : "MyTube Boss"}>
+      {showEgzey && <span className="wm-egzey">EGZEY</span>}
       <span className="wm-mytube">MyTube</span>
       <span className="wm-boss">BOSS</span>
     </div>
@@ -391,7 +391,7 @@ function HomeView({ onOpen, fresh }) {
         <div className="hh-grid" aria-hidden="true" />
         <div className="hh-content">
           <div className="greet">{greeting()}</div>
-          <Wordmark />
+          <Wordmark showEgzey={false} />
           <NowChip />
         </div>
       </div>

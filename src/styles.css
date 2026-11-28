@@ -1132,3 +1132,7 @@ html.np-open .scroller .mq-track, html.bg-idle .mq-track { will-change: auto; }
 .np-top-r { gap: 0; padding-left: 4px; border-left: 1px solid rgba(255,255,255,.18); }
 .np-top-r .icon-btn { width: 30px; flex-shrink: 0; }
 @media (max-width: 360px) { .np-top { gap: 2px; grid-template-columns: 24px minmax(0,1fr) auto; } .np-top > .icon-btn { width: 24px; } .np-top-r .icon-btn { width: 26px; } .np-modes button { font-size: 9px; } }
+
+/* Center the home hero now-playing strip without moving the wordmark. */
+.hh-content .hh-now { align-self: center; width: min(100%, 420px); max-width: 100%; min-height: 44px; margin-top: 12px; padding: 10px 16px; font-size: 15px; gap: 12px; }
+.hh-content .hh-now-t { min-width: 0; flex: 1; text-align: center; }
