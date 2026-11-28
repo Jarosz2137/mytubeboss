@@ -1085,6 +1085,24 @@ function GeometryScene({ kind, id }) {
     };
     const hex = [[0,-80],[69,-40],[69,40],[0,80],[-69,40],[-69,-40]];
     const tri = [[0,-70],[61,35],[-61,35]];
+    const stars = STARS.map(s => ({
+      angle: parseFloat(s['--a'])*Math.PI/180,
+      duration: parseFloat(s['--d']), offset: -parseFloat(s['--o']),
+      size: parseFloat(s['--s'])
+    }));
+    // Cache one tiny glow sprite, instead of 46 animated CSS shadows.
+    const sprite = document.createElement('canvas');
+    sprite.width = sprite.height = 32;
+    const glow = sprite.getContext('2d');
+    let spriteColor = '';
+    function updateSprite() {
+      if (!glow || spriteColor === color) return;
+      spriteColor = color;
+      glow.clearRect(0,0,32,32);
+      const g = glow.createRadialGradient(16,16,2,16,16,16);
+      g.addColorStop(0,color); g.addColorStop(.3,color); g.addColorStop(1,'transparent');
+      glow.fillStyle = g; glow.fillRect(0,0,32,32);
+    }
     const off = onFrame((levels, now) => {
       if (profIsolated('scene')) return;
       if (!w || !h || !sheet?.classList.contains('open')) { last = 0; return; }
@@ -1121,6 +1139,32 @@ function GeometryScene({ kind, id }) {
           const phase=(1-Math.cos((elapsed+i*1.4)*2*Math.PI/14))/2, s=.3+i*.2;
           poly(tri,s,(i*20+phase*60)*Math.PI/180,(.5+.05*phase)*(reactive ? .65+kick*.35 : 1),(reactive?1:.6)*s);
         }
+      } else if (kind === 'rings') {
+        ctx.scale(1/unit/pulse,1/unit/pulse);
+        const scale = reactive ? 1+bass*.2+kick*.15 : 1;
+        for(let i=0;i<6;i++) {
+          const p=((elapsed+i)%6)/6, s=.05+.95*p;
+          ctx.globalAlpha=.5*Math.min(p/.15,(1-p)/.85);
+          ctx.lineWidth=1.5*s*scale;
+          ctx.beginPath(); ctx.arc(0,0,Math.max(w,h)*.525*s*scale,0,Math.PI*2); ctx.stroke();
+        }
+      } else if (kind === 'dots') {
+        ctx.scale(1/unit/pulse,1/unit/pulse);
+        updateSprite();
+        const scale=reactive ? 1+bass*.25+kick*.2 : 1;
+        const high=reactive && levels ? (levels[5]+levels[6]+levels[7])/3 : 0;
+        const vmax=Math.max(w,h);
+        for(const star of stars) {
+          const p=((elapsed+star.offset)%star.duration)/star.duration;
+          const q=p*p;
+          const distance=vmax*(.04+.71*q)*scale;
+          const sx=star.size*(.3+4.7*q), sy=star.size*(.3+.9*q);
+          ctx.save(); ctx.rotate(star.angle); ctx.translate(distance,0);
+          ctx.globalAlpha=Math.min(1,p/.15)*(reactive ? Math.min(1,.75+high*.25+kick*.3) : 1);
+          ctx.drawImage(sprite,-sx*1.5,-sy*2.5,sx*3,sy*5);
+          ctx.fillStyle=color; ctx.beginPath(); ctx.ellipse(0,0,sx/2,sy/2,0,0,Math.PI*2); ctx.fill();
+          ctx.restore();
+        }
       } else {
         for(let i=0;i<8;i++) {
           const p=((elapsed+i)%8)/8, s=.02+1.08*p;
@@ -1139,17 +1183,11 @@ function GeometryScene({ kind, id }) {
 }
 function Scene({ id }) {
   const kind = sceneFor(id);
-  const geometry = kind === 'hex' || kind === 'prism' || kind === 'tunnel';
+  const geometry = kind !== 'grid';
   return (
     <div className={`np-scene ${geometry ? 'sc-geometry-wrap' : 'sc-'+kind}`} key={kind} aria-hidden="true">
       {kind === 'grid' && (<><div className="np-sun" /><div className="np-grid" /></>)}
-      {kind === 'rings' && (<div className="sc-rings">{[0, 1, 2, 3, 4, 5].map((i) => <i key={i} style={{ '--i': i }} />)}</div>)}
       {geometry && <GeometryScene kind={kind} id={id} />}
-      {kind === 'dots' && (
-        <div className="sc-stars">
-          {STARS.map((st, i) => <i key={i} style={st} />)}
-        </div>
-      )}
     </div>
   );
 }
