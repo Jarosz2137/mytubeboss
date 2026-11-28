@@ -12,10 +12,11 @@ export function profJob(name) {
   const start=performance.now(), token={name,start}; jobs.set(token,token);
   return (bytes=0) => { jobs.delete(token); profEnd(name,start,bytes); };
 }
-export function profReport() {
+export function profReport(anims) {
   if (!enabled) return;
+  const start = performance.now();
   const groups = new Map();
-  for (const a of document.getAnimations?.() || []) {
+  for (const a of anims || document.getAnimations?.() || []) {
     if (a.playState !== 'running') continue;
     const t=a.effect?.target, el=t?.element || t;
     const region=el?.closest?.('.np')?'player':el?.closest?.('.ambient')?'ambient':el?.closest?.('.scroller')?'scroller':'other';
@@ -26,6 +27,7 @@ export function profReport() {
   console.info('[prof] active '+JSON.stringify([...jobs.values()].map(j=>({name:j.name,elapsedMs:Math.round(performance.now()-j.start)}))));
   for(const [name,n] of groups) console.info('[prof] css '+n+' '+name);
   stats.clear();
+  console.info('[prof] report overhead '+(performance.now()-start).toFixed(2)+' ms');
 }
 export function profilerPanel() {
   const panel=document.createElement('div'); panel.className='prof-panel';

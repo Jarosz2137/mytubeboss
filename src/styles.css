@@ -1063,7 +1063,9 @@ h1.big { font-size: 36px; margin: 22px 0 16px; background: linear-gradient(90deg
 .np-blobs { filter: none !important; }
 .np-art::before { filter: none !important; will-change: auto; }
 .tb-title { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; background: rgba(20,14,30,.72); }
-.ambient i { animation-duration: 40s; }
+.ambient i { animation: none; }
+.ambient .a2 { transform: translate(3vmax, 2vmax) scale(1.04); }
+.ambient .a3 { transform: translate(5vmax, 3vmax) scale(1.06); }
 
 /* full-screen bass flash: on the scene layer, no blend mode */
 .np::after { display: none !important; }
