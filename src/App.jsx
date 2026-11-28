@@ -978,14 +978,14 @@ function SleepChip() {
   const [, tick] = useState(0);
   useEffect(() => { const i = setInterval(() => tick((x) => x + 1), 15000); return () => clearInterval(i); }, []);
   const cur = p.sleep === 'track' ? 'track' : p.sleep ? 'time' : 0;
-  const label = cur === 'track' ? '🌙 koniec utworu' : cur === 'time' ? `🌙 ${Math.max(1, Math.round((p.sleep - Date.now()) / 60000))} min` : '🌙 Timer';
+  const label = cur === 'track' ? 'Do końca' : cur === 'time' ? `${Math.max(1, Math.round((p.sleep - Date.now()) / 60000))} min` : 'Timer';
   const cycle = () => {
     tap();
     const mins = cur === 'time' ? Math.round((p.sleep - Date.now()) / 60000) : 0;
     const pick = cur === 0 ? 15 : cur === 'track' ? 0 : mins < 15 ? 30 : mins < 30 ? 45 : mins < 45 ? 60 : 'track';
     setSleep(pick);
   };
-  return <button className={`tool-chip ${cur ? 'lit' : ''}`} onClick={cycle}>{label}</button>;
+  return <button className={'np-key'+(cur ? ' on' : '')} aria-label={cur === 'track' ? 'Timer: koniec utworu' : `Timer: ${label}`} aria-pressed={!!cur} onClick={cycle}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 15.5A8.8 8.8 0 0 1 8.5 4 8.8 8.8 0 1 0 20 15.5z"/></svg><span>{label}</span></button>;
 }
 
 // Car mode: huge controls, readable from a phone holder
@@ -1023,7 +1023,7 @@ function NpTools() {
   useEffect(() => onDrop(() => force((x) => x + 1)), []);
   const drop = t && dropTime(t.id);
   const rate = p.rate || 1;
-  const label = rate === 1 ? '1×' : rate < 1 ? `${rate}× slowed` : `${rate}× sped up`;
+  const label = `${rate}×`;
   const [open, setOpen] = useState(false);
   useEffect(() => { const f = () => setOpen((x) => !x); window.addEventListener('mtb-tools', f); return () => window.removeEventListener('mtb-tools', f); }, []);
   const nextRate = () => { tap(); const i = RATES.indexOf(rate); setRate(RATES[(i + 1) % RATES.length]); };
@@ -1031,12 +1031,12 @@ function NpTools() {
   return (
     <div className={`np-tools ${open ? 'open' : ''}`}>
       {(
-        <div className="np-tools-more">
-          {drop ? <button className="tool-chip drop" onClick={() => { tap(ImpactStyle.Medium); seek(Math.max(0, drop - 1.5)); }}>⚡ Drop · {fmt(drop)}</button>
-            : <span className="tool-chip ghosty">⚡ szukam dropu…</span>}
-          <button className={`tool-chip ${rate !== 1 ? 'lit' : ''}`} onClick={nextRate} onContextMenu={(e) => { e.preventDefault(); setRate(1); }}>{label}</button>
+        <div className="np-tools-more np-console" role="group" aria-label="Narzędzia odtwarzacza">
+          {drop ? <button className="np-key drop-ready" aria-label={`Przejdź do dropu ${fmt(drop)}`} onClick={() => { tap(ImpactStyle.Medium); seek(Math.max(0, drop - 1.5)); }}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m13 3-8 11h7l-1 7 8-11h-7z"/></svg><span>Drop · {fmt(drop)}</span></button>
+            : <button className="np-key" disabled aria-label="Szukam dropu"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m13 3-8 11h7l-1 7 8-11h-7z"/></svg><span>Drop · …</span></button>}
+          <button className={'np-key'+(rate !== 1 ? ' on' : '')} aria-label={`Prędkość odtwarzania ${label}`} onClick={nextRate} onContextMenu={(e) => { e.preventDefault(); setRate(1); }}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.2 18a9 9 0 1 1 15.6 0H4.2zM12 14l4-5M6 13h1M12 6v1M17 13h1"/><circle cx="12" cy="14" r="1"/></svg><span>{label}</span></button>
           <SleepChip />
-          <button className="tool-chip" onClick={() => { tap(); window.dispatchEvent(new Event('mtb-car')); }}>🚗 Auto</button>
+          <button className="np-key" aria-label="Tryb samochodowy" onClick={() => { tap(); window.dispatchEvent(new Event('mtb-car')); }}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 10 2-5h10l2 5M4 10h16l1 3v5H3v-5l1-3zM6 18v2M18 18v2M6 14h2M16 14h2"/></svg><span>Auto</span></button>
         </div>
       )}
     </div>

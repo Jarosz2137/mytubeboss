@@ -1131,3 +1131,10 @@ html.np-open .scroller .mq-track, html.bg-idle .mq-track { will-change: auto; }
 /* Center the home hero now-playing strip without moving the wordmark. */
 .hh-content .hh-now { align-self: center; width: min(100%, 420px); max-width: 100%; min-height: 44px; margin-top: 12px; padding: 10px 16px; font-size: 15px; gap: 12px; }
 .hh-content .hh-now-t { min-width: 0; flex: 1; text-align: center; }
+
+/* Tools use the same icon, label and active-state grammar as the header. */
+.np-tools-more.np-console { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:0; width:100%; min-width:0; }
+.np-tools-more.np-console > .np-key { font-variant-numeric:tabular-nums; }
+.np-tools-more.np-console > .np-key.drop-ready { color:#fff; }
+.np-tools-more.np-console > .np-key:disabled { opacity:.45; cursor:default; }
+.np .more-btn.dot::after { width:5px; height:5px; background:currentColor; box-shadow:none; }
