@@ -1841,9 +1841,9 @@ export default function App() {
       </main>
       <MiniPlayer hidden={npOpen} onDrag={dragSheet} onDragEnd={endDragSheet} />
       <nav className="tabs">
-        <button className={tab === 'home' ? 'on' : ''} onClick={() => switchTab('home')}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 10 9-7 9 7v10H3zM9 20v-6h6v6"/></svg><span>Główna</span></button>
-        <button className={tab === 'search' ? 'on' : ''} onClick={() => switchTab('search')}><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg><span>Szukaj</span></button>
-        <button className={tab === 'library' ? 'on' : ''} onClick={() => switchTab('library')}><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="4" height="16" rx="1"/><path d="M12 4v16m4-15 4 14"/></svg><span>Biblioteka</span></button>
+        <button className={tab === 'home' ? 'on' : ''} onClick={() => switchTab('home')}><svg viewBox="0 0 24 24" aria-hidden="true"><path className="nav-signature" d="M3 13 12 4l9 9"/><path d="M5.5 14v5.5h13V14"/><path className="nav-signature" d="M9.5 19.5v-4h5v4M2 22h20"/></svg><span>Główna</span></button>
+        <button className={tab === 'search' ? 'on' : ''} onClick={() => switchTab('search')}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 15a7.5 7.5 0 1 0-2 2l5 4"/><path className="nav-signature" d="M6.5 10.5a4 4 0 0 1 4-4M18 3v3m-1.5-1.5h3"/></svg><span>Szukaj</span></button>
+        <button className={tab === 'library' ? 'on' : ''} onClick={() => switchTab('library')}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 4 4 2v12l-4 2" opacity=".55"/><path d="m19 5 3 2v10l-3 2" opacity=".3"/><path d="M3 6 13 3v18L3 18z"/><path className="nav-signature" d="M6 14.5v-5l4-1v5m-4 1a1.2 1.2 0 1 1-1.2-1.2H6m4-.8a1.2 1.2 0 1 1-1.2-1.2H10"/></svg><span>Biblioteka</span></button>
       </nav>
       <OtaPill />
       <CarMode />

@@ -1206,3 +1206,9 @@ html.np-open .scroller .mq-track, html.bg-idle .mq-track { will-change: auto; }
 .feed-section { display:flow-root; }
 .feed-section .stagger { animation:none; }
 html.feed-scrolling .feed-section .mq-track { animation-play-state:paused!important; will-change:auto; }
+
+/* BOSS navigation glyphs: horizon, discovery lens and coverflow collection. */
+.tabs button svg { width:25px;height:25px;stroke-width:1.55; }
+.tabs button .nav-signature { stroke:currentColor; }
+.tabs button.on .nav-signature { stroke:var(--c1,#fff); }
+@media (orientation:landscape) { .tabs button svg { width:22px;height:22px; } }
