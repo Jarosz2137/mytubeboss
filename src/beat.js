@@ -22,7 +22,22 @@ export const onBeat = (f) => { subs.add(f); return () => subs.delete(f); };
 export let beatStatus = '';
 const status = (s) => { beatStatus = s; subs.forEach((f) => f(enabled)); };
 
-async function analyse(id, parts, mime) {
+let analysing = false, queued = null;
+function analyse(id, parts, mime) {
+  if (!id || envs.has(id) || !parts?.length || document.hidden || current()?.id !== id) return;
+  queued = { id, parts, mime };
+  if (!analysing) void drainAnalysis();
+}
+async function drainAnalysis() {
+  analysing = true;
+  try {
+    while (queued) {
+      const job = queued; queued = null;
+      if (!document.hidden && current()?.id === job.id) await analyseNow(job.id, job.parts, job.mime);
+    }
+  } finally { analysing = false; }
+}
+async function analyseNow(id, parts, mime) {
   if (envs.has(id) || busy.has(id) || !parts?.length) return;
   busy.add(id);
   try {
@@ -30,6 +45,8 @@ async function analyse(id, parts, mime) {
     const bytes = await new Blob(parts, { type: (mime || '').split(';')[0] }).arrayBuffer();
     const decoded = await new OAC(1, RATE, RATE).decodeAudioData(bytes);
     // Render one filter at a time (mono) so memory stays small even for long songs.
+    const obsolete = () => document.hidden || current()?.id !== id;
+    if (obsolete()) return;
     const B = BAND_HZ.length;
     const renderFilter = async (type, hz, q) => {
       const off = new OAC(1, decoded.length, RATE);
@@ -45,12 +62,14 @@ async function analyse(id, parts, mime) {
       for (let i = 0; i < n; i++) { let s2 = 0; for (let j = i * FRAME, e = j + FRAME; j < e; j++) s2 += ch[j] * ch[j]; out[i] = Math.sqrt(s2 / FRAME); }
       return out;
     };
-    const data = await renderFilter('lowpass', 150);
+    const bassEnergy = rms(await renderFilter('lowpass', 150));
+    if (obsolete()) return;
     const bands = [];
     for (let b = 0; b < B; b++) {
       const hz = BAND_HZ[b];
       const e = rms(await renderFilter(hz < 100 ? 'lowpass' : hz > 3500 ? 'highpass' : 'bandpass', hz, 1.1));
-      const sorted = Array.from(e).sort((x, y) => x - y);
+      if (obsolete()) return;
+      const sorted = e.slice().sort();
       const p = sorted[Math.floor(sorted.length * 0.985)] || 1e-6;
       for (let i = 0; i < e.length; i++) e[i] = Math.min(1, Math.pow(e[i] / p, 0.8));
       bands.push(e);
@@ -75,18 +94,13 @@ async function analyse(id, parts, mime) {
     } catch { /* no drop */ }
     dropSubs.forEach((f) => f());
     while (spectra.size > 3) spectra.delete(spectra.keys().next().value);
-    const n = Math.floor(data.length / FRAME);
-    const energy = new Float32Array(n);
-    for (let i = 0; i < n; i++) {
-      let s = 0;
-      for (let j = i * FRAME, e = j + FRAME; j < e; j++) s += data[j] * data[j];
-      energy[i] = Math.sqrt(s / FRAME);
-    }
+    const n = bassEnergy.length;
+    const energy = bassEnergy;
     // onset = energy above the local (0.5 s) average, normalised by a high percentile
     const env = new Float32Array(n);
     let avg = energy[0] || 0;
     for (let i = 0; i < n; i++) { avg = avg * 0.96 + energy[i] * 0.04; env[i] = Math.max(0, energy[i] - avg * 1.08); }
-    const sorted = Array.from(env).sort((a, b) => a - b);
+    const sorted = env.slice().sort();
     const p = sorted[Math.floor(sorted.length * 0.97)] || 1e-6;
     for (let i = 0; i < n; i++) env[i] = Math.min(1, env[i] / p);
     envs.set(id, env);
@@ -109,7 +123,7 @@ window.addEventListener('mtb-audio', (e) => {
   if (current()?.id === id && !document.hidden) analyse(id, parts, mime);
 });
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden || !enabled) return;
+  if (document.hidden) return;
   const t = current(), p = t && pending.get(t.id);
   if (p && !envs.has(t.id)) analyse(t.id, p.parts, p.mime);
 });
@@ -126,7 +140,7 @@ export function onFrame(f) { frameSubs.add(f); if (!raf) raf = requestAnimationF
 function loop(now = 0) {
   if (!enabled && !frameSubs.size) { raf = 0; return; }
   raf = requestAnimationFrame(loop);
-  if (document.hidden) return;
+  if (document.hidden || !document.documentElement.classList.contains('np-open')) { lastT = 0; prevNow = 0; return; }
   const fk = Math.min(4, Math.max(0.25, (now - (lastT || now - 16.7)) / 16.7)); // frame-rate independent
   lastT = now;
   // Music is sampled at 30 Hz (one step ahead, so interpolation adds no lag);
