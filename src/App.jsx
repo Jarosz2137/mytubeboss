@@ -343,6 +343,36 @@ function NowChip() {
   );
 }
 
+// Keep measured space for distant feed sections without retaining their card DOM.
+const feedVisibilityCallbacks = new WeakMap();
+const feedVisibility = typeof IntersectionObserver !== 'undefined' ? new IntersectionObserver(entries => {
+  for (const e of entries) feedVisibilityCallbacks.get(e.target)?.(e.isIntersecting);
+}, {rootMargin:'700px 0px'}) : null;
+function FeedSection({ sec, onOpen, eager }) {
+  const ref = useRef(null);
+  const height = useRef(0);
+  const [visible,setVisible] = useState(eager || !feedVisibility);
+  useLayoutEffect(() => {
+    const node=ref.current;
+    if (!node || !feedVisibility) return;
+    const update = near => {
+      // A hidden tab has no usable geometry; retain its last measured height.
+      if (near) setVisible(true);
+      else {
+        const h=node.getBoundingClientRect().height;
+        if(h>0) height.current=h;
+        setVisible(false);
+      }
+    };
+    feedVisibilityCallbacks.set(node,update);
+    feedVisibility.observe(node);
+    return () => {feedVisibility.unobserve(node);feedVisibilityCallbacks.delete(node);};
+  }, []);
+  return <div ref={ref} style={visible ? undefined : {minHeight:height.current || 280, display:'flow-root'}}>
+    {visible && (sec.kind === 'quick' ? <QuickPicks s={sec} /> : sec.kind === 'again' ? <ListenAgain s={sec} onOpen={onOpen} /> : <Section s={sec} onOpen={onOpen} />)}
+  </div>;
+}
+
 function HomeView({ onOpen, fresh }) {
   const [chip, setChip] = useState(null);
   const s = useAsync(() => yt.home(chip), [chip, fresh]);
@@ -370,10 +400,7 @@ function HomeView({ onOpen, fresh }) {
       )}
       {s.loading && (s.data ? <div className="refreshing" /> : <Loader />)}
       {s.error && <Err text={s.error} />}
-      {s.data?.sections.map((sec, i) =>
-        sec.kind === 'quick' ? <QuickPicks key={i} s={sec} />
-          : sec.kind === 'again' ? <ListenAgain key={i} s={sec} onOpen={onOpen} />
-            : <Section key={i} s={sec} onOpen={onOpen} />)}
+      {s.data?.sections.map((sec, i) => <FeedSection key={i + ':' + sec.kind + ':' + (sec.title || '')} sec={sec} onOpen={onOpen} eager={i<2} />)}
     </div>
   );
 }
