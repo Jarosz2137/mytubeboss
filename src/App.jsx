@@ -8,7 +8,7 @@ import { useCoverColors, coverColors } from './colors.js';
 import { getLogs, clearLogs } from './debuglog.js';
 import {
   usePlayer, current, playList, addNext, jump, toggle, next, prev, seek, setMode, videoElement, audioElement,
-  cycleRepeat, toggleShuffle, toggleLike, useTime, togglePip, pickOutput, dismissLoginPrompt, pipIfVideo, RATES, setRate, setSleep,
+  cycleRepeat, toggleShuffle, toggleLike, useTime, togglePip, pickOutput, dismissLoginPrompt, pipIfVideo, RATES, setRate, setSleep, readListeningHistory,
 } from './player.js';
 import { setBeat, beatOn, onBeat, setBeatTarget, restoreBeat, beatStatus, bandLevels, onFrame, dropTime, onDrop } from './beat.js';
 import { onOta, otaState, applyNow, BUILD, recheck } from './ota.js';
@@ -453,21 +453,21 @@ function SearchView({ onOpen }) {
 function WrappedView({ onOpen }) {
   const [h, setH] = useState(null);
   const [range, setRange] = useState(30);
-  useEffect(() => { Preferences.get({ key: 'history' }).then(({ value }) => { try { setH(JSON.parse(value || '[]')); } catch { setH([]); } }); }, []);
+  useEffect(() => { let live=true; const refresh=()=>readListeningHistory().then(rows=>{if(live)setH(rows);}); refresh(); const timer=setInterval(()=>{if(!document.hidden)refresh();},15000); return()=>{live=false;clearInterval(timer);}; }, []);
   if (!h) return <div className="view"><Loader /></div>;
   const since = range ? Date.now() - range * 864e5 : 0;
   const list = h.filter((x) => x.at >= since);
   const totalMin = Math.round(list.reduce((a, x) => a + x.sec, 0) / 60);
   const by = (key) => {
     const m = new Map();
-    for (const x of list) { const k = key(x); if (!k) continue; const e = m.get(k) || { n: 0, sec: 0, x }; e.n++; e.sec += x.sec; m.set(k, e); }
-    return [...m.values()].sort((a, b) => b.n - a.n);
+    for (const x of list) { const k = key(x); if (!k) continue; const e = m.get(k) || { n: 0, sec: 0, x }; e.n += x.qualified ? 1 : 0; e.sec += x.sec; m.set(k, e); }
+    return [...m.values()].filter(e=>e.n>0).sort((a, b) => b.sec - a.sec);
   };
   const topTracks = by((x) => x.id).slice(0, 5);
   const topArtists = by((x) => (x.subtitle || '').split(',')[0].trim()).slice(0, 5);
-  const hours = new Array(24).fill(0); list.forEach((x) => { hours[new Date(x.at).getHours()]++; });
+  const hours = new Array(24).fill(0); list.forEach((x) => { hours[new Date(x.at).getHours()] += x.sec; });
   const peak = hours.indexOf(Math.max(...hours));
-  const days = new Set(h.map((x) => new Date(x.at).toDateString()));
+  const days = new Set(h.filter(x=>x.qualified).map((x) => new Date(x.at).toDateString()));
   let streak = 0; for (let d = new Date(); days.has(d.toDateString()); d.setDate(d.getDate() - 1)) streak++;
   const vibe = peak < 5 ? 'Nocny boss' : peak < 11 ? 'Poranny rozruch' : peak < 17 ? 'Dzienna zmiana' : peak < 22 ? 'Wieczorny cruise' : 'Nocny boss';
   return (
@@ -475,6 +475,7 @@ function WrappedView({ onOpen }) {
       <div className="wr-hero">
         <div className="wr-kicker">BOSS WRAPPED</div>
         <h1 className="big">Twoje słuchanie</h1>
+        <p className="empty-note">Nowe statystyki od aktualizacji. Odtworzenie liczone po 30 sekundach słuchania.</p>
         <div className="chips">
           {[[7, '7 dni'], [30, '30 dni'], [365, 'Rok'], [0, 'Zawsze']].map(([v, l]) => (
             <button key={l} className={range === v ? 'on' : ''} onClick={() => { tap(); setRange(v); }}>{l}</button>
@@ -485,7 +486,7 @@ function WrappedView({ onOpen }) {
         <>
           <div className="wr-stats">
             <div className="wr-stat big"><b>{totalMin.toLocaleString('pl-PL')}</b><span>minut muzyki</span></div>
-            <div className="wr-stat"><b>{list.length}</b><span>odtworzeń</span></div>
+            <div className="wr-stat"><b>{list.filter(x=>x.qualified).length}</b><span>odtworzeń</span></div>
             <div className="wr-stat"><b>{streak}</b><span>{streak === 1 ? 'dzień' : 'dni'} z rzędu</span></div>
             <div className="wr-stat"><b>{String(peak).padStart(2, '0')}:00</b><span>{vibe}</span></div>
           </div>

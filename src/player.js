@@ -236,6 +236,8 @@ function announce(id, r) {
 async function load(startAt = 0) {
   const track = current();
   if (!track) return;
+  if(!listened || listened.track.id!==track.id) beginListen(track);
+  if(listened) listened.last=null;
   const token = ++loadToken;
   suppressErrors = true;
   releaseMedia();
@@ -370,6 +372,8 @@ async function load(startAt = 0) {
 let suppressErrors = false;
 
 export function playList(tracks, startIndex = 0) {
+  flushListen();
+  beginListen(tracks[startIndex]);
   set({ queue: tracks.slice(), index: startIndex });
   load();
 }
@@ -387,6 +391,8 @@ export function addNext(track) {
 
 export function jump(i) {
   if (i < 0 || i >= state.queue.length) return;
+  flushListen();
+  beginListen(state.queue[i]);
   set({ index: i });
   load();
 }
@@ -401,7 +407,7 @@ export function toggle() {
 }
 
 export async function next(auto = false) {
-  if (auto && state.repeat === 'one') { el.currentTime = 0; el.play().catch(() => {}); return; }
+  if (auto && state.repeat === 'one') { flushListen(); beginListen(current()); el.currentTime = 0; el.play().catch(() => {}); return; }
   if (state.index < state.queue.length - 1) return jump(state.index + 1);
   if (state.repeat === 'all' && state.queue.length) return jump(0);
   // End of queue -> radio from the current track.
@@ -431,6 +437,7 @@ export function seek(sec) {
 
 export function setMode(mode) {
   if (mode === state.mode) return;
+  flushListen(); if(listened) listened.last=null;
   const at = el.currentTime || 0;
   const old = el;
   releaseMedia();
@@ -524,37 +531,67 @@ export function setRate(r) {
 on('playing', () => { if (el.playbackRate !== rate) { el.playbackRate = rate; el.defaultPlaybackRate = rate; } });
 
 // ---- listening history for Boss Wrapped (kept on the phone) ----
-let listened = { track: null, sec: 0, last: 0, marked: false };
+// One record per actual playback session. Checkpoints update it, never count twice.
+let listened = null;
 let historyTail = Promise.resolve();
-function flushListen() {
-  const t = listened.track, sec = Math.round(listened.sec);
-  if (!t || sec < 30) return;
-  const entry = { id:t.id, title:t.title, subtitle:t.subtitle, thumb:t.thumb, sec, at:Date.now() };
-  listened.sec = 0;
-  historyTail = historyTail.then(async () => {
-    const { Preferences } = await import('@capacitor/preferences');
-    let h = [];
-    try { h = JSON.parse((await Preferences.get({key:'history'})).value || '[]'); } catch {}
-    if (!Array.isArray(h)) h = [];
-    h.push(entry);
-    await Preferences.set({key:'history',value:JSON.stringify(h.slice(-4000))});
-  }).catch(e => console.warn('[history]',e?.message));
+let listenSequence = 0;
+const listenPrefix = Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,8);
+function beginListen(t) {
+  listened = t ? { track:t, session:listenPrefix+'-'+(++listenSequence), sec:0, last:null, wall:0, saved:0, marked:false, at:Date.now() } : null;
 }
-on('timeupdate', () => {
-  const t = current();
-  if (!t) return;
-  if (listened.track?.id !== t.id) { flushListen(); listened = {track:t, sec:0, last:el.currentTime, marked:false}; }
-  const d = el.currentTime-listened.last;
-  if (d>0 && d<2 && !el.paused && !el.seeking) listened.sec += d/(el.playbackRate||1);
-  listened.last=el.currentTime;
-  if (!listened.marked && listened.sec>=30) {
-    listened.marked=true;
-    ytmod.invalidateHomeAfterListen();
-    window.dispatchEvent(new Event('mtb-listened'));
-    console.info('[history] qualified listen', t.id);
+function sampleListen() {
+  const l = listened;
+  if (!l || l.track.id !== current()?.id) return;
+  const pos = el.currentTime, now = Date.now();
+  if (!Number.isFinite(pos)) return;
+  if (l.last !== null && !el.seeking) {
+    const delta = pos-l.last, elapsed = Math.max(0,(now-l.wall)/1000);
+    const seconds = delta/(el.playbackRate||1);
+    // Media time measures actual progress even when iOS throttles background callbacks.
+    // Reject discontinuities and forward seeks rather than counting skipped music.
+    if(seconds>0 && seconds<=elapsed+0.75) l.sec+=Math.min(seconds,elapsed+0.25);
   }
-});
-document.addEventListener('visibilitychange', () => { if(document.hidden) flushListen(); });
+  l.last=pos; l.wall=now;
+  if(!l.marked && l.sec>=30) {
+    l.marked=true; ytmod.invalidateHomeAfterListen();
+    window.dispatchEvent(new Event('mtb-listened'));
+    console.info('[history] qualified listen',l.track.id);
+  }
+  if(l.sec-l.saved>=30) flushListen(false);
+}
+function flushListen(sample=true) {
+  if(sample) sampleListen();
+  const l=listened;
+  if(!l || l.sec<1 || l.sec-l.saved<0.5) return historyTail;
+  const t=l.track;
+  const entry={id:t.id,title:t.title,subtitle:t.subtitle,thumb:t.thumb,sec:Math.round(l.sec*10)/10,at:l.at,session:l.session,qualified:l.sec>=30};
+  l.saved=l.sec;
+  historyTail=historyTail.then(async()=>{
+    const {Preferences}=await import('@capacitor/preferences');
+    let rows=[];
+    try {rows=JSON.parse((await Preferences.get({key:'history_v2'})).value||'[]');} catch {}
+    if(!Array.isArray(rows)) rows=[];
+    const i=rows.findIndex(x=>x.session===entry.session);
+    if(i>=0) rows[i]=entry; else rows.push(entry);
+    await Preferences.set({key:'history_v2',value:JSON.stringify(rows.slice(-20000))});
+  }).catch(e=>{l.saved=0;console.warn('[history]',e?.message);});
+  return historyTail;
+}
+export async function readListeningHistory() {
+  flushListen();
+  await historyTail;
+  const {Preferences}=await import('@capacitor/preferences');
+  try {const rows=JSON.parse((await Preferences.get({key:'history_v2'})).value||'[]');return Array.isArray(rows)?rows:[];}catch{return [];}
+}
+on('playing',()=>{if(!listened) beginListen(current());if(listened){listened.last=el.currentTime;listened.wall=Date.now();}});
+on('timeupdate',()=>{if(!el.paused&&!el.seeking) sampleListen();});
+on('pause',()=>{flushListen();if(listened) listened.last=null;});
+on('waiting',()=>{flushListen();if(listened) listened.last=null;});
+on('seeking',()=>{if(listened) listened.last=null;});
+on('seeked',()=>{if(listened&&!el.paused){listened.last=el.currentTime;listened.wall=Date.now();}});
+on('ended',()=>{flushListen();if(listened) listened.last=null;});
+document.addEventListener('visibilitychange',()=>{if(document.hidden) flushListen();});
+window.addEventListener('pagehide',()=>{flushListen();});
 on('timeupdate', () => {
   setTime({ time: el.currentTime, duration: Number.isFinite(el.duration) && el.duration > 0 ? el.duration : timeState.duration });
   updatePosition();
