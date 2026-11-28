@@ -1106,3 +1106,16 @@ html.np-open .mini * { animation-play-state:paused !important; }
 
 /* Avoid keeping invisible text and shelf covers permanently promoted. */
 html.np-open .scroller .mq-track, html.bg-idle .mq-track { will-change: auto; }
+
+/* Studio controls: typography and state markers, not decorative gradients. */
+.np-top .seg { background: transparent; border-radius: 0; padding: 3px; border-bottom: 1px solid rgba(255,255,255,.16); }
+.np-top .seg button { color: rgba(255,255,255,.62); border-radius: 0; }
+.np-top .seg button.on { color: #fff; background: transparent; }
+.np-top .seg-pill { top: auto; bottom: -1px; height: 2px; border-radius: 1px; background: #fff; box-shadow: none; transition: transform .22s ease-out; }
+.np-top-r .beat-btn { border-color: transparent; border-radius: 6px; }
+.np-top-r .beat-btn.on { border-color: rgba(255,255,255,.22); background: rgba(255,255,255,.09); }
+.np-tools .tool-chip { font: 600 12px/1.2 system-ui,sans-serif; border-radius: 6px; background: transparent; border: 1px solid rgba(255,255,255,.18); box-shadow: none; font-variant-numeric: tabular-nums; }
+.np-tools .tool-chip.lit { color: #fff; background: rgba(255,255,255,.12); border-color: rgba(255,255,255,.45); }
+.np-tools .tool-chip.drop { color: #fff; border-left: 3px solid #ffe08a; background: rgba(255,255,255,.07); }
+.chips button { border-radius: 6px; background: transparent; border-color: rgba(255,255,255,.13); }
+.chips button.on { color: #fff; background: rgba(255,255,255,.12); border-color: rgba(255,255,255,.45); box-shadow: none; }
