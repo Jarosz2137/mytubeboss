@@ -29,6 +29,10 @@ if ! grep -q "GoogleLoginPlugin" "$DELEGATE"; then
   grep -q "^import Capacitor" "$DELEGATE" || perl -0pi -e 's/import UIKit/import UIKit\nimport Capacitor/' "$DELEGATE"
   cat /tmp/gl.swift >> "$DELEGATE"
 fi
+if ! grep -q "class MTBEnergyPlugin" "$DELEGATE"; then
+  printf '\n' >> "$DELEGATE"
+  cat native/ios/MTBEnergy.swift >> "$DELEGATE"
+fi
 STORY="ios/App/App/Base.lproj/Main.storyboard"
 perl -pi -e 's/customClass="CAPBridgeViewController" customModule="Capacitor"/customClass="MTBBridgeViewController" customModule="App" customModuleProvider="target"/' "$STORY"
 grep -q "MTBBridgeViewController" "$STORY" && echo "Google login plugin wired"

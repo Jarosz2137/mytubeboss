@@ -7,6 +7,7 @@ import Capacitor
 
 class MTBBridgeViewController: CAPBridgeViewController {
     override func capacitorDidLoad() {
+        if bridge?.plugin(withName: "MTBEnergy") == nil { bridge?.registerPluginInstance(MTBEnergyPlugin()) }
         // Backup registration; the main one is GoogleLoginPlugin in packageClassList (patched in CI).
         if bridge?.plugin(withName: "GoogleLogin") == nil { bridge?.registerPluginInstance(GoogleLoginPlugin()) }
     }
