@@ -152,7 +152,7 @@ function loop(now = 0) {
   // ...and back to full effects after ~20 s of smooth frames
   if (lite) { good = fk < 2.2 ? good + now - (prevNow || now) : 0; if (good > 20000) { document.documentElement.classList.remove('lite'); slow = 0; good = 0; console.log('[perf] lite mode off'); } }
   prevNow = now;
-  if (!target || !enabled || !document.documentElement.classList.contains('np-open')) return;
+  if (!target || !enabled) return;
   const t = current();
   const env = t && envs.get(t.id);
   let v = 0;

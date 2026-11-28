@@ -899,7 +899,6 @@ function Visualizer() {
     const level = new Float32Array(N);
     const t0 = performance.now();
     const off = onFrame((L, now) => {
-      if (!document.documentElement.classList.contains('np-open')) return; // player closed: nobody sees the bars
       const mid = (N - 1) / 2;
       for (let k = 0; k < N; k++) {
         const d = Math.abs(k - mid) / mid; // 0 centre .. 1 edge
@@ -1063,11 +1062,11 @@ function Scene({ id }) {
         </svg>
       )}
       {kind === 'hex' && (
-        <div className="sc-hex2">
+        <svg className="sc-hex" viewBox="-100 -100 200 200">
           {[0, 1, 2, 3, 4].map((i) => (
-            <svg key={i} className="sc-shape" style={{ '--i': i }} viewBox="-100 -100 200 200"><polygon points="0,-80 69,-40 69,40 0,80 -69,40 -69,-40" /></svg>
+            <polygon key={i} style={{ '--i': i }} points="0,-80 69,-40 69,40 0,80 -69,40 -69,-40" />
           ))}
-        </div>
+        </svg>
       )}
       {kind === 'dots' && (
         <div className="sc-stars">
@@ -1075,9 +1074,9 @@ function Scene({ id }) {
         </div>
       )}
       {kind === 'prism' && (
-        <div className="sc-prism2">
-          {[0, 1, 2, 3, 4, 5].map((i) => <svg key={i} className="sc-shape" style={{ '--i': i }} viewBox="-100 -100 200 200"><polygon points="0,-70 61,35 -61,35" /></svg>)}
-        </div>
+        <svg className="sc-prism" viewBox="-100 -100 200 200">
+          {[0, 1, 2, 3, 4, 5].map((i) => <polygon key={i} style={{ '--i': i }} points="0,-70 61,35 -61,35" />)}
+        </svg>
       )}
     </div>
   );
@@ -1127,8 +1126,6 @@ function NowPlaying({ open, onClose, onOpen, sheetRef }) {
   useEffect(() => onBeat((v) => { setBeatState(v); bumpBeat((x) => x + 1); }), []);
   useEffect(() => { restoreBeat(); }, []);
   useEffect(() => { setBeatTarget(sheet.current); }, [t?.id, p.mode]);
-  // Only one screen animates at a time: the player when open, the app behind it otherwise.
-  useEffect(() => { document.documentElement.classList.toggle('np-open', !!open); }, [open]);
 
   // Move the single <video> engine into view when in video mode.
   useEffect(() => {
