@@ -1454,28 +1454,14 @@ function NowPlaying({ open, onClose, onOpen, sheetRef }) {
       <div className="np-inner">
         <div className="np-grabber" />
         {beat && beatStatus && <div className="beat-note">BEAT: {beatStatus}</div>}
-        <div className="np-top">
-          <button className="icon-btn" onClick={onClose}>{Icon.down}</button>
-          <div className="np-modes" role="group" aria-label="Tryb odtwarzacza">
-            <button className={p.mode === 'audio' ? 'on' : ''} aria-pressed={p.mode === 'audio'} onClick={() => { tap(); setMode('audio'); }}>
-              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="2.5"/><path d="M5.5 9.5a7 7 0 0 1 4-4M14.5 18.5a7 7 0 0 0 4-4"/></svg><span>Utwór</span>
-            </button>
-            <button className={p.mode === 'video' ? 'on' : ''} aria-pressed={p.mode === 'video'} onClick={() => { tap(); setMode('video'); }}>
-              <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="m10 9 5 3-5 3z"/></svg><span>Teledysk</span>
-            </button>
-            <button className={beat ? 'on' : ''} aria-label="Puls do beatu" aria-pressed={beat} onClick={() => { tap(); setBeat(!beat); }}>
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h3l3-7 4 14 3-10 2 3h3"/></svg><span>Beat</span>
-            </button>
-          </div>
-          <div className="np-top-r">
-            <button className="icon-btn" onClick={() => { tap(); if (!pickOutput()) alert('Zmień wyjście w Centrum sterowania (ikona AirPlay przy odtwarzaczu).'); }} aria-label="Wybierz urządzenie">
-              <svg viewBox="0 0 24 24"><path d="M6 17H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h16a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1h-2" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /><path d="M12 14l5 6H7z" fill="currentColor" /></svg>
-            </button
-            >{' '}<button className={`icon-btn ${showLyrics ? 'lit' : ''}`} onClick={() => { tap(); setShowQueue(false); setShowLyrics((x) => !x); }} aria-label="Tekst">
-              <svg viewBox="0 0 24 24"><path d="M5 6h14M5 11h10M5 16h7" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" /><circle cx="18" cy="17" r="2.6" fill="none" stroke="currentColor" strokeWidth="2" /><path d="M20.6 17V9.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
-            </button
-            >{' '}<button className={`icon-btn ${showQueue ? 'lit' : ''}`} onClick={() => { tap(); setShowLyrics(false); setShowQueue((x) => !x); }}>{Icon.queue}</button>
-          </div>
+        <div className="np-top np-console" role="group" aria-label="Sterowanie odtwarzaczem">
+          <button className="np-key" onClick={onClose} aria-label="Zwiń odtwarzacz"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg><span>Zwiń</span></button>
+          <button className={'np-key'+(p.mode === 'audio' ? ' on' : '')} aria-pressed={p.mode === 'audio'} onClick={() => { tap(); setMode('audio'); }}><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="2.5"/><path d="M5.5 9.5a7 7 0 0 1 4-4M14.5 18.5a7 7 0 0 0 4-4"/></svg><span>Utwór</span></button>
+          <button className={'np-key'+(p.mode === 'video' ? ' on' : '')} aria-pressed={p.mode === 'video'} onClick={() => { tap(); setMode('video'); }}><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="m10 9 5 3-5 3z"/></svg><span>Teledysk</span></button>
+          <button className={'np-key'+(beat ? ' on' : '')} aria-label="Puls do beatu" aria-pressed={beat} onClick={() => { tap(); setBeat(!beat); }}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h3l3-7 4 14 3-10 2 3h3"/></svg><span>Beat</span></button>
+          <button className="np-key" onClick={() => { tap(); if (!pickOutput()) alert('Zmień wyjście w Centrum sterowania (ikona AirPlay przy odtwarzaczu).'); }} aria-label="Wybierz urządzenie"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 17H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h16a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1h-2"/><path d="m12 14 5 6H7z"/></svg><span>Wyjście</span></button>
+          <button className={'np-key'+(showLyrics ? ' on' : '')} aria-pressed={showLyrics} onClick={() => { tap(); setShowQueue(false); setShowLyrics((x) => !x); }} aria-label="Tekst"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16M4 10h16M4 15h10M4 20h7"/></svg><span>Tekst</span></button>
+          <button className={'np-key'+(showQueue ? ' on' : '')} aria-pressed={showQueue} onClick={() => { tap(); setShowLyrics(false); setShowQueue((x) => !x); }} aria-label="Kolejka"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16M4 10h16M4 15h9M4 20h9m4-6 4 3-4 3z"/></svg><span>Kolejka</span></button>
         </div>
 
         {showLyrics && !showQueue ? (

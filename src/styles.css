@@ -1120,19 +1120,14 @@ html.np-open .scroller .mq-track, html.bg-idle .mq-track { will-change: auto; }
 .chips button { border-radius: 6px; background: transparent; border-color: rgba(255,255,255,.13); }
 .chips button.on { color: #fff; background: rgba(255,255,255,.12); border-color: rgba(255,255,255,.45); box-shadow: none; }
 
-/* Player instrument strip: icon-led, equal cells, independent active indicators. */
-.np-top { grid-template-columns: 28px minmax(0,1fr) auto; gap: 5px; align-items: center; }
-.np-top > .icon-btn { width: 28px; padding: 0; }
-.np-modes { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); min-width: 0; align-items: center; }
-.np-modes button { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-width: 0; width: 100%; height: 45px; padding: 0 0 5px; border: 0; background: transparent; color: rgba(255,255,255,.62); font: 550 10px/1.1 system-ui,sans-serif; letter-spacing: -.2px; white-space: nowrap; }
-.np-modes button svg { width: 21px; height: 21px; fill: none; stroke: currentColor; stroke-width: 1.65; stroke-linecap: round; stroke-linejoin: round; flex: none; }
-.np-modes button.on { color: #fff; font-weight: 700; }
-.np-modes button.on::after { content: ''; position: absolute; bottom: 0; left: 50%; width: 14px; height: 2px; transform: translateX(-50%); border-radius: 1px; background: currentColor; }
-.np-modes button:focus-visible { outline: 1px solid currentColor; outline-offset: -2px; }
-.np-top-r { gap: 0; padding-left: 4px; border-left: 1px solid rgba(255,255,255,.18); }
-.np-top-r .icon-btn { width: 30px; flex-shrink: 0; }
-@media (max-width: 360px) { .np-top { gap: 2px; grid-template-columns: 24px minmax(0,1fr) auto; } .np-top > .icon-btn { width: 24px; } .np-top-r .icon-btn { width: 26px; } .np-modes button { font-size: 9px; } }
-
+/* Unified player console: seven equal, monochrome keys. */
+.np-top.np-console { display:grid; grid-template-columns: repeat(7,minmax(0,1fr)); gap:0; align-items:center; width:100%; min-width:0; }
+.np-console > .np-key { position:relative; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; justify-self:stretch; width:100%; min-width:0; height:46px; padding:0 0 5px; background:transparent; border:0; border-radius:0; color:rgba(255,255,255,.62); font:550 10px/1.1 system-ui,sans-serif; letter-spacing:-.3px; white-space:nowrap; }
+.np-console > .np-key svg { display:block; width:21px; height:21px; flex:none; fill:none; stroke:currentColor; stroke-width:1.65; stroke-linecap:round; stroke-linejoin:round; }
+.np-console > .np-key.on { color:#fff; font-weight:700; }
+.np-console > .np-key.on::after { content:''; position:absolute; bottom:0; left:50%; width:14px; height:2px; transform:translateX(-50%); border-radius:1px; background:currentColor; }
+.np-console > .np-key:focus-visible { outline:1px solid currentColor; outline-offset:-2px; }
+@media(max-width:360px) { .np-console > .np-key { font-size:9px; letter-spacing:-.4px; } .np-console > .np-key svg { width:19px; height:19px; } }
 /* Center the home hero now-playing strip without moving the wordmark. */
 .hh-content .hh-now { align-self: center; width: min(100%, 420px); max-width: 100%; min-height: 44px; margin-top: 12px; padding: 10px 16px; font-size: 15px; gap: 12px; }
 .hh-content .hh-now-t { min-width: 0; flex: 1; text-align: center; }
