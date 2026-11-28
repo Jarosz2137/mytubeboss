@@ -786,7 +786,8 @@ html, body { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 .np.beat-on .sc-hex { transform: translate(-50%, -50%) scale(calc(1 + var(--bass) * .14 + var(--kick) * .1)); }
 .np.beat-on .sc-prism { transform: translate(-50%, -50%) scale(calc(1 + var(--mid) * .18 + var(--kick) * .1)); }
 .np.beat-on .sc-dots { opacity: calc(.3 + var(--high) * .6 + var(--kick) * .3); }
-.np.beat-on .sc-prism polygon { stroke-width: calc(.6 + var(--kick) * 1.4); }
+.np.beat-on .sc-prism polygon { stroke-width: 1; }
+.np.beat-on .sc-prism { opacity: calc(.65 + var(--kick) * .35); }
 /* Hex: keep geometry stable during beat pulses; modulate opacity instead of stroke width. */
 .np.beat-on .sc-hex polygon { stroke-width: 1; }
 .np.beat-on .sc-hex { opacity: calc(.65 + var(--kick) * .35); }
