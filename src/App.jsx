@@ -1670,6 +1670,17 @@ export default function App() {
   const bump = (t) => setFresh((f) => ({ ...f, [t]: (f[t] || 0) + 1 }));
   const [stack, setStack] = useState([]);
   const [npOpen, setNpOpen] = useState(false);
+  const homeNeedsRefresh = useRef(false);
+  const homeLastListenRefresh = useRef(0);
+  useEffect(() => { const mark = () => { homeNeedsRefresh.current = true; }; window.addEventListener('mtb-listened', mark); return () => window.removeEventListener('mtb-listened', mark); }, []);
+  useEffect(() => {
+    if(npOpen || tab !== 'home' || stack.length) return;
+    const refresh = () => { if(document.hidden || !homeNeedsRefresh.current || Date.now()-homeLastListenRefresh.current<60000) return; homeNeedsRefresh.current=false; homeLastListenRefresh.current=Date.now(); bump('home'); };
+    refresh();
+    const timer=setInterval(refresh,15000);
+    document.addEventListener('visibilitychange',refresh);
+    return () => {clearInterval(timer);document.removeEventListener('visibilitychange',refresh);};
+  }, [npOpen,tab,stack.length]);
   const scroller = useRef();
   const sheetRef = useRef();
 

@@ -329,6 +329,10 @@ function tagSection(raw, sec) {
 const homeJobs = new Map();
 let homeTail = Promise.resolve();
 const homeCache = new Map();
+const homeFullAt = new Map();
+let listeningRevision = 0;
+const homeRevision = new Map();
+export function invalidateHomeAfterListen() { listeningRevision++; }
 export function home(filter) {
   const key = filter || '';
   if (homeJobs.has(key)) { console.info('[home] reuse pending refresh'); return homeJobs.get(key); }
@@ -341,7 +345,9 @@ export function home(filter) {
 }
 async function fetchHome(filter, key) {
   const cached = homeCache.get(key);
-  const pages = cached ? 1 : 3;
+  const revision = listeningRevision;
+  const full = !cached || Date.now() - (homeFullAt.get(key) || 0) > 300000 || homeRevision.get(key) !== revision;
+  const pages = full ? 3 : 1;
   const pageSections = [];
   const started = performance.now();
   console.info('[home] refresh start');
@@ -371,11 +377,12 @@ async function fetchHome(filter, key) {
     await new Promise(resolve => setTimeout(resolve, 0));
     try { feed = await feed.getContinuation(); } catch { break; }
   }
-  if (cached && feed.has_continuation) pageSections.push(...cached.slice(1));
+  if (!full && cached && feed.has_continuation) pageSections.push(...cached.slice(1));
+  if (full) { homeFullAt.set(key, Date.now()); homeRevision.set(key, revision); }
   homeCache.delete(key);
   homeCache.set(key, pageSections);
-  while (homeCache.size > 6) homeCache.delete(homeCache.keys().next().value);
-  if (cached) {
+  while (homeCache.size > 6) { const old = homeCache.keys().next().value; homeCache.delete(old); homeFullAt.delete(old); homeRevision.delete(old); }
+  if (!full && cached) {
     const seen = new Set(sections.map(s => s.kind + ':' + s.title));
     for (const sec of pageSections.slice(1).flat()) {
       const id = sec.kind + ':' + sec.title;

@@ -524,25 +524,37 @@ export function setRate(r) {
 on('playing', () => { if (el.playbackRate !== rate) { el.playbackRate = rate; el.defaultPlaybackRate = rate; } });
 
 // ---- listening history for Boss Wrapped (kept on the phone) ----
-let listened = { id: null, sec: 0, last: 0 };
-async function flushListen() {
-  const t = state.queue.find((q) => q.id === listened.id);
-  if (!t || listened.sec < 30) return;
-  const { Preferences } = await import('@capacitor/preferences');
-  let h = [];
-  try { h = JSON.parse((await Preferences.get({ key: 'history' })).value || '[]'); } catch { h = []; }
-  h.push({ id: t.id, title: t.title, subtitle: t.subtitle, thumb: t.thumb, sec: Math.round(listened.sec), at: Date.now() });
-  if (h.length > 4000) h = h.slice(-4000);
-  await Preferences.set({ key: 'history', value: JSON.stringify(h) });
+let listened = { track: null, sec: 0, last: 0, marked: false };
+let historyTail = Promise.resolve();
+function flushListen() {
+  const t = listened.track, sec = Math.round(listened.sec);
+  if (!t || sec < 30) return;
+  const entry = { id:t.id, title:t.title, subtitle:t.subtitle, thumb:t.thumb, sec, at:Date.now() };
+  listened.sec = 0;
+  historyTail = historyTail.then(async () => {
+    const { Preferences } = await import('@capacitor/preferences');
+    let h = [];
+    try { h = JSON.parse((await Preferences.get({key:'history'})).value || '[]'); } catch {}
+    if (!Array.isArray(h)) h = [];
+    h.push(entry);
+    await Preferences.set({key:'history',value:JSON.stringify(h.slice(-4000))});
+  }).catch(e => console.warn('[history]',e?.message));
 }
 on('timeupdate', () => {
   const t = current();
-  if (t && listened.id !== t.id) { flushListen(); listened = { id: t.id, sec: 0, last: el.currentTime }; }
-  const d = el.currentTime - listened.last;
-  if (d > 0 && d < 2) listened.sec += d / (el.playbackRate || 1);
-  listened.last = el.currentTime;
+  if (!t) return;
+  if (listened.track?.id !== t.id) { flushListen(); listened = {track:t, sec:0, last:el.currentTime, marked:false}; }
+  const d = el.currentTime-listened.last;
+  if (d>0 && d<2 && !el.paused && !el.seeking) listened.sec += d/(el.playbackRate||1);
+  listened.last=el.currentTime;
+  if (!listened.marked && listened.sec>=30) {
+    listened.marked=true;
+    ytmod.invalidateHomeAfterListen();
+    window.dispatchEvent(new Event('mtb-listened'));
+    console.info('[history] qualified listen', t.id);
+  }
 });
-document.addEventListener('visibilitychange', () => { if (document.hidden) { flushListen(); listened.sec = 0; } });
+document.addEventListener('visibilitychange', () => { if(document.hidden) flushListen(); });
 on('timeupdate', () => {
   setTime({ time: el.currentTime, duration: Number.isFinite(el.duration) && el.duration > 0 ? el.duration : timeState.duration });
   updatePosition();
