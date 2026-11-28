@@ -85,6 +85,42 @@ function pruneDownloads() {
 
 // Ready-to-play audio for upcoming tracks: { mime, durationMs, parts }.
 const ready = new Map();
+let readyBytes = 0;
+const audioBytes = r => r?.parts?.reduce((n,c)=>n+(c.byteLength||0),0)||0;
+function forgetReady(id) {
+  const entry=ready.get(id);
+  if(entry){readyBytes-=entry.bytes;ready.delete(id);}
+}
+function trimReady() {
+  const level=energyLevel();
+  const maxBytes=(level>=3?0:level>=2?8:level===1?16:24)*1048576;
+  const maxEntries=level>=3?0:level>=2?2:level===1?3:5;
+  while(ready.size>maxEntries || readyBytes>maxBytes) {
+    const nextId=state.queue[state.index+1]?.id;
+    const victim=[...ready.keys()].find(id=>id!==nextId)??ready.keys().next().value;
+    if(victim===undefined)break;
+    forgetReady(victim);
+  }
+}
+function rememberReady(id,r) {
+  if(!r?.parts?.length || !r.mime || !r.durationMs || energyLevel()>=3)return;
+  const bytes=audioBytes(r);
+  if(!bytes||bytes>8*1048576)return;
+  forgetReady(id);
+  ready.set(id,{r,bytes});
+  readyBytes+=bytes;
+  trimReady();
+}
+function reuseReady(id) {
+  const entry=ready.get(id);
+  if(!entry)return null;
+  ready.delete(id);ready.set(id,entry);
+  console.info('[audio-cache] hit',id,Math.round(entry.bytes/1024),'KB');
+  return entry.r;
+}
+window.addEventListener('mtb-energy',trimReady);
+ytmod.onAuthEvent(()=>{ready.clear();readyBytes=0;});
+
 // Share in-flight downloads by track and client, replaying buffered chunks to a new consumer.
 const inflight = new Map();
 function sharedSabr(id, callbacks = {}, client = 'WEB') {
@@ -131,8 +167,7 @@ async function prefetchNext() {
   try {
     const r = await sharedSabr(nextTrack.id, {}, 'WEB');
     if (current()?.id !== nextTrack.id && state.queue[state.index+1]?.id === nextTrack.id) {
-      ready.set(nextTrack.id, r);
-      while (ready.size > 3) ready.delete(ready.keys().next().value);
+      rememberReady(nextTrack.id, r);
     }
     console.info('[prefetch] ready', nextTrack.title);
   } catch (e) {
@@ -260,14 +295,14 @@ async function load(startAt = 0) {
       if (ctl) { off.parts.forEach((c) => ctl.push(c)); ctl.end(); announce(track.id, off); done(); return; }
     }
     // 1) already downloaded in the background
-    const pre = ready.get(track.id);
+    const pre = reuseReady(track.id);
     if (pre) {
-      ready.delete(track.id);
       announce(track.id, pre);
       if (pre.durationMs) setTime({ duration: pre.durationMs / 1000 });
       const ctl = makeMse(pre, startAt, token);
       if (ctl) { pre.parts.forEach((c) => ctl.push(c)); ctl.end(); done(); return; }
       if (await tryPlay(blobOf(pre), startAt, token)) { done(); return; }
+      forgetReady(track.id);
     }
     // 2) SABR streamed into MediaSource (starts after a few seconds of audio)
     for (const sc of ['WEB', 'MWEB']) {
@@ -285,8 +320,8 @@ async function load(startAt = 0) {
         }, sc);
         if (token !== loadToken) return;
         announce(track.id, r);
-        if (ctl) { ctl.end(); done(); return; }
-        if (await tryPlay(blobOf(r), startAt, token)) { done(); return; }
+        if (ctl) { ctl.end(); rememberReady(track.id,r); done(); return; }
+        if (await tryPlay(blobOf(r), startAt, token)) { if(token===loadToken)rememberReady(track.id,r); done(); return; }
         log.push('SABR ' + sc + ': media ' + (el.error?.code ?? 'timeout'));
       } catch (e) {
         if (token !== loadToken) return;
