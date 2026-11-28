@@ -1139,9 +1139,13 @@ html.np-open .scroller .mq-track, html.bg-idle .mq-track { will-change: auto; }
 .np-tools-more.np-console > .np-key:disabled { opacity:.45; cursor:default; }
 .np .more-btn.dot::after { width:5px; height:5px; background:currentColor; box-shadow:none; }
 
-/* More breathing room: primary modes get labels; utility keys stay icon-only. */
-.np-top.np-console { grid-template-columns: minmax(30px,.8fr) minmax(0,1.35fr) minmax(0,1.55fr) minmax(0,1.2fr) repeat(3,minmax(30px,.85fr)); column-gap: 2px; }
+/* Center the three modes independently of the asymmetric utility icons. */
+.np-top.np-console { grid-template-columns: minmax(0,1fr) repeat(3,minmax(0,1.35fr)) minmax(0,.5fr) minmax(0,.5fr); column-gap:0; align-items:center; }
 .np-top.np-console > .np-key { height:46px; gap:4px; }
+.np-top.np-console > .np-key:first-child { justify-self:start; width:min(100%,44px); }
+.np-top.np-console > .np-key:nth-last-child(-n+2) { justify-self:end; }
 .np-top.np-console > .np-key:not(:has(span)) { padding:0 0 5px; }
 .np-top.np-console > .np-key:not(:has(span)) svg { width:21px; height:21px; }
-@media(max-width:360px) { .np-top.np-console { column-gap:0; grid-template-columns: minmax(26px,.8fr) minmax(0,1.35fr) minmax(0,1.55fr) minmax(0,1.2fr) repeat(3,minmax(26px,.85fr)); } }
+/* Equal outer gutters keep the mode group centered even with two keys on the right. */
+.np-top.np-console { grid-template-columns: minmax(64px,1fr) repeat(3,minmax(0,1.2fr)) repeat(2,minmax(32px,.5fr)); }
+@media(max-width:360px) { .np-top.np-console { grid-template-columns:minmax(56px,1fr) repeat(3,minmax(0,1.2fr)) repeat(2,minmax(28px,.5fr)); } }
