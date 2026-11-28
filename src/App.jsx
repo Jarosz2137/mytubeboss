@@ -43,7 +43,7 @@ const Marquee = memo(function Marquee({ text }) {
       setRun(w - b.clientWidth > 2 ? Math.ceil(w) : 0);
     };
     const node = box.current;
-    check();
+    if(!node.closest('.feed-section')) check();
     marqueeChecks.set(node, check);
     marqueeResize?.observe(node);
     if (marqueeVisibility) marqueeVisibility.observe(node);
@@ -155,7 +155,7 @@ function Cover({ src, round, className = '' }) {
   const [ok, setOk] = useState(true);
   return (
     <div className={`cover ${round ? 'round' : ''} ${className}`}>
-      {src && ok ? <img src={src} alt="" loading="lazy" referrerPolicy="no-referrer" onError={() => setOk(false)} /> : <div className="cover-ph">♪</div>}
+      {src && ok ? <img src={src} alt="" loading="lazy" decoding="async" referrerPolicy="no-referrer" onError={() => setOk(false)} /> : <div className="cover-ph">♪</div>}
     </div>
   );
 }
@@ -350,35 +350,52 @@ function NowChip() {
 const feedVisibilityCallbacks = new WeakMap();
 const feedVisibility = typeof IntersectionObserver !== 'undefined' ? new IntersectionObserver(entries => {
   for (const e of entries) feedVisibilityCallbacks.get(e.target)?.(e.isIntersecting);
-}, {rootMargin:'700px 0px'}) : null;
+}, {rootMargin:'1000px 0px'}) : null;
 const FeedSection = memo(function FeedSection({ sec, onOpen, eager }) {
   const ref = useRef(null);
   const height = useRef(0);
+  const retire = useRef(0);
   const [visible,setVisible] = useState(eager || !feedVisibility);
   useLayoutEffect(() => {
     const node=ref.current;
     if (!node || !feedVisibility) return;
     const update = near => {
       // A hidden tab has no usable geometry; retain its last measured height.
+      clearTimeout(retire.current);
       if (near) setVisible(true);
-      else {
+      else retire.current=setTimeout(()=>{
+        // Never tear down a large shelf during an active scroll gesture.
+        if(document.documentElement.classList.contains('feed-scrolling')) { update(false); return; }
         const h=node.getBoundingClientRect().height;
         if(h>0) height.current=h;
         setVisible(false);
-      }
+      },900);
     };
     feedVisibilityCallbacks.set(node,update);
     feedVisibility.observe(node);
-    return () => {feedVisibility.unobserve(node);feedVisibilityCallbacks.delete(node);};
+    return () => {clearTimeout(retire.current);feedVisibility.unobserve(node);feedVisibilityCallbacks.delete(node);};
   }, []);
-  return <div ref={ref} style={visible ? undefined : {minHeight:height.current || 280, display:'flow-root'}}>
+  return <div ref={ref} className="feed-section" style={visible ? undefined : {minHeight:height.current || 280}}>
     {visible && (sec.kind === 'quick' ? <QuickPicks s={sec} /> : sec.kind === 'again' ? <ListenAgain s={sec} onOpen={onOpen} /> : <Section s={sec} onOpen={onOpen} />)}
   </div>;
 });
 
 function HomeView({ onOpen, fresh }) {
   const [chip, setChip] = useState(null);
-  const s = useAsync(() => yt.home(chip), [chip, fresh]);
+  const lastFeed = useRef(null);
+  const s = useAsync(async () => {
+    const next = await yt.home(chip);
+    const old = lastFeed.current;
+    if(old?.chip===chip) {
+      const byKey=new Map(old.data.sections.map(sec=>[sec.kind+':'+sec.title,sec]));
+      next.sections=next.sections.map(sec=>{
+        const prev=byKey.get(sec.kind+':'+sec.title);
+        return prev && JSON.stringify(prev)===JSON.stringify(sec) ? prev : sec;
+      });
+    }
+    lastFeed.current={chip,data:next};
+    return next;
+  }, [chip, fresh]);
   useEffect(() => {
     if (!s.loading && s.data) console.info('[home] rendered', s.data.sections.length, 'sections');
   }, [s.loading, s.data]);
@@ -1721,7 +1738,7 @@ export default function App() {
   useEffect(() => { const mark = () => { homeNeedsRefresh.current = true; }; window.addEventListener('mtb-listened', mark); return () => window.removeEventListener('mtb-listened', mark); }, []);
   useEffect(() => {
     if(npOpen || tab !== 'home' || stack.length) return;
-    const refresh = () => { if(document.hidden || !homeNeedsRefresh.current || Date.now()-homeLastListenRefresh.current<60000) return; homeNeedsRefresh.current=false; homeLastListenRefresh.current=Date.now(); bump('home'); };
+    const refresh = () => { if(document.hidden || !homeNeedsRefresh.current || Date.now()-homeLastListenRefresh.current<60000 || Date.now()-scrollAt.current<700 || (scroller.current?.scrollTop||0)>80) return; homeNeedsRefresh.current=false; homeLastListenRefresh.current=Date.now(); bump('home'); };
     refresh();
     const timer=setInterval(refresh,15000);
     document.addEventListener('visibilitychange',refresh);
@@ -1729,6 +1746,21 @@ export default function App() {
   }, [npOpen,tab,stack.length]);
   const scroller = useRef();
   const sheetRef = useRef();
+  const scrollAt = useRef(0);
+  useEffect(()=>{
+    const node=scroller.current;
+    if(!node)return;
+    const root=document.documentElement;
+    let timer=0;
+    const scroll=()=>{
+      scrollAt.current=Date.now();
+      if(!root.classList.contains('feed-scrolling'))root.classList.add('feed-scrolling');
+      clearTimeout(timer);
+      timer=setTimeout(()=>root.classList.remove('feed-scrolling'),180);
+    };
+    node.addEventListener('scroll',scroll,{passive:true});
+    return()=>{node.removeEventListener('scroll',scroll);clearTimeout(timer);root.classList.remove('feed-scrolling');};
+  },[]);
 
   // Drag up from the mini player: the full player follows the finger.
   const dragSheet = (dy) => {

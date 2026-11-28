@@ -1201,3 +1201,8 @@ html.np-open .scroller .mq-track, html.bg-idle .mq-track { will-change: auto; }
 .search-history-term span { overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
 .search-history-term svg { flex:none;width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;opacity:.55; }
 .search-history-remove { width:44px;min-height:44px;font-size:22px;color:var(--fg3); }
+
+/* Home scroll: keep shelf geometry stable and avoid replaying entrance animations on virtual mounts. */
+.feed-section { display:flow-root; }
+.feed-section .stagger { animation:none; }
+html.feed-scrolling .feed-section .mq-track { animation-play-state:paused!important; will-change:auto; }
