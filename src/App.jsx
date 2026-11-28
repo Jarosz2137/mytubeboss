@@ -1,3 +1,4 @@
+import { energyLevel } from './energy.js';
 import { profStart, profEnd, profJob, profReport, profilerPanel, profIsolated } from './profiler.js';
 import { useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react';
 import * as yt from './yt.js';
@@ -1065,13 +1066,14 @@ function GeometryScene({ kind, id }) {
     const resize = () => {
       w = canvas.clientWidth; h = canvas.clientHeight;
       if (!w || !h) return;
-      ratio = Math.min(window.devicePixelRatio || 1, 1.5, 1200 / Math.max(w, h));
+      ratio = Math.min(window.devicePixelRatio || 1, energyLevel() >= 2 ? 1 : 1.5, 1200 / Math.max(w, h));
       canvas.width = Math.max(1, Math.round(w * ratio));
       canvas.height = Math.max(1, Math.round(h * ratio));
       drawn = false;
     };
     const observer = new ResizeObserver(resize);
     observer.observe(canvas); resize();
+    window.addEventListener('mtb-energy', resize);
     const poly = (points, scale, angle, alpha, width) => {
       ctx.save(); ctx.rotate(angle); ctx.scale(scale, scale);
       ctx.globalAlpha = alpha; ctx.lineWidth = width / scale;
@@ -1085,7 +1087,7 @@ function GeometryScene({ kind, id }) {
       if (profIsolated('scene')) return;
       if (!w || !h || !sheet?.classList.contains('open')) { last = 0; return; }
       const playing = sheet.classList.contains('is-playing');
-      if (!playing && drawn) { last = 0; return; }
+      if ((!playing || energyLevel() >= 3) && drawn) { last = 0; return; }
       const dt = last ? Math.min(50, now-last) : 0;
       // Cap drawing at ~60 Hz, not the whole UI. No catch-up work after hiding.
       if (last && now-last < 15) return;
@@ -1129,7 +1131,7 @@ function GeometryScene({ kind, id }) {
       drawn = true;
       profEnd('canvas.'+kind, prof);
     });
-    return () => { off(); observer.disconnect(); };
+    return () => { off(); observer.disconnect(); window.removeEventListener('mtb-energy', resize); };
   }, [kind,id]);
   return <canvas ref={ref} className={'sc-geometry geometry-'+kind} />;
 }

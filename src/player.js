@@ -1,3 +1,4 @@
+import { energyLevel } from './energy.js';
 import { profStart, profEnd, profJob, profReport, profilerPanel, profIsolated } from './profiler.js';
 // Playback engine: one <video> element for both audio and music videos,
 // a queue, autoplay radio, and lock-screen / Dynamic Island metadata.
@@ -107,6 +108,7 @@ function sharedSabr(id, callbacks = {}, client = 'WEB') {
 }
 const prefetching = new Set();
 async function prefetchNext() {
+  if (energyLevel() >= 2) return;
   const nextTrack = state.queue[state.index + 1];
   if (!nextTrack || ready.has(nextTrack.id) || prefetching.has(nextTrack.id)) return;
   prefetching.add(nextTrack.id);

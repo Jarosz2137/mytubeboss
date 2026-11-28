@@ -1,3 +1,4 @@
+import { energyLevel } from './energy.js';
 import { profStart, profEnd, profJob, profReport, profilerPanel, profIsolated } from './profiler.js';
 // BEAT: pulse the cover to the bass of the playing song.
 // iOS gives Web Audio silence for MediaSource playback, so instead of analysing the live output
@@ -25,7 +26,7 @@ const status = (s) => { beatStatus = s; subs.forEach((f) => f(enabled)); };
 
 let analysing = false, queued = null;
 function analyse(id, parts, mime) {
-  if (!id || envs.has(id) || !parts?.length || document.hidden || current()?.id !== id) return;
+  if (energyLevel() >= 3 || !id || envs.has(id) || !parts?.length || document.hidden || current()?.id !== id) return;
   queued = { id, parts, mime };
   if (!analysing) void drainAnalysis();
 }
@@ -48,7 +49,7 @@ async function analyseNow(id, parts, mime) {
     const finishDecode = profJob('beat.decode');
     const decoded = await new OAC(1, RATE, RATE).decodeAudioData(bytes).finally(()=>finishDecode(bytes.byteLength));
     // Render one filter at a time (mono) so memory stays small even for long songs.
-    const obsolete = () => document.hidden || current()?.id !== id;
+    const obsolete = () => energyLevel() >= 3 || document.hidden || current()?.id !== id;
     if (obsolete()) return;
     const B = BAND_HZ.length;
     const renderFilter = async (type, hz, q) => {
@@ -132,7 +133,12 @@ document.addEventListener('visibilitychange', () => {
   if (p && !envs.has(t.id)) analyse(t.id, p.parts, p.mime);
 });
 
-let lastT = 0;
+window.addEventListener('mtb-energy', () => {
+  if (energyLevel() >= 3 || document.hidden) return;
+  const t = current(), p = t && pending.get(t.id);
+  if (p && !envs.has(t.id)) analyse(t.id, p.parts, p.mime);
+});
+let lastT = 0, lastEnergyWrite = 0;
 const lastV = {};
 function put(st, k, v) { if (Math.abs((lastV[k] ?? -9) - v) < 0.004) return; lastV[k] = v; const s2 = v.toFixed(3); for (const el of targets) el.style.setProperty(k, s2); }
 // ONE clock for every animation: the music is read once per frame here, everything else
@@ -191,6 +197,8 @@ function loop(now = 0) {
   }
   const ease = (prev, t) => prev + (t - prev) * (1 - Math.pow(1 - (t > prev ? 0.6 : 0.08), fk));
   sm.bass = ease(sm.bass, bass); sm.mid = ease(sm.mid, mid); sm.high = ease(sm.high, high);
+  if (energyLevel() >= 2 && now - lastEnergyWrite < 32) return;
+  lastEnergyWrite = now;
   const st = target.style;
   put(st, '--pulse', cur); put(st, '--bass', sm.bass); put(st, '--mid', sm.mid); put(st, '--high', sm.high); put(st, '--kick', kick);
 }
