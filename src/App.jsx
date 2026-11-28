@@ -943,6 +943,25 @@ function MiniProgress() {
   return <div className="mini-progress" style={{ transform: `scaleX(${pct / 100})` }} />;
 }
 
+// Replay on every interaction; no animation loop or React state.
+const iconMotion = new WeakMap();
+function animateControl(button, kind) {
+  if(document.hidden || Number(document.documentElement.dataset.energy||0)>=2 || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const svg=button?.querySelector('svg');
+  if(!svg?.animate)return;
+  iconMotion.get(svg)?.cancel();
+  const frames={
+    toggle:[{transform:'rotate(-24deg) scale(.86)'},{transform:'rotate(6deg) scale(1.04)',offset:.7},{transform:'none'}],
+    prev:[{transform:'translateX(0)'},{transform:'translateX(-5px) scale(.94)',offset:.45},{transform:'none'}],
+    next:[{transform:'translateX(0)'},{transform:'translateX(5px) scale(.94)',offset:.45},{transform:'none'}],
+    shuffle:[{transform:'scaleX(.65)',opacity:.65},{transform:'none',opacity:1}],
+    repeat:[{transform:'rotate(-45deg)'},{transform:'none'}],
+    tab:[{transform:'translateY(2px) scale(.9)'},{transform:'none'}]
+  }[kind];
+  if(!frames)return;
+  const motion=svg.animate(frames,{duration:kind==='toggle'?230:180,easing:'cubic-bezier(.2,.8,.25,1)'});
+  iconMotion.set(svg,motion);
+}
 function MiniPlayer({ hidden, onDrag, onDragEnd }) {
   const p = usePlayer();
   const t = current();
@@ -996,8 +1015,8 @@ function MiniPlayer({ hidden, onDrag, onDragEnd }) {
         <div className="mini-title"><Marquee text={t.title} /></div>
         <div className="mini-sub">{p.error ? p.error : t.subtitle}</div>
       </div>
-      <button className="icon-btn mini-transport" aria-label={p.playing ? 'Pauza' : 'Odtwórz'} onClick={(e) => { e.stopPropagation(); tap(); toggle(); }}>{p.loading ? <span className="spin" /> : <svg viewBox="0 0 32 32" aria-hidden="true">{p.playing?<><path d="M8 5 13 7v18l-5 2z"/><path d="m24 5-5 2v18l5 2z"/></>:<><path d="m9 4 16 12L9 28z"/><path d="m5 8 0 16" opacity=".4"/></>}</svg>}</button>
-      <button className="icon-btn mini-transport" aria-label="Następny utwór" onClick={(e) => { e.stopPropagation(); tap(); next(); }}><svg viewBox="0 0 32 32" aria-hidden="true"><g transform="translate(32 0) scale(-1 1)"><path d="M24 7 11 12v8l13 5z" opacity=".28"/><path d="M19 5 6 11v10l13 6z" opacity=".55"/><path d="M14 4 2.5 10v12L14 28z"/></g></svg></button>
+      <button className="icon-btn mini-transport" aria-label={p.playing ? 'Pauza' : 'Odtwórz'} onClick={(e) => { e.stopPropagation(); animateControl(e.currentTarget,"toggle"); tap(); toggle(); }}>{p.loading ? <span className="spin" /> : <svg viewBox="0 0 32 32" aria-hidden="true">{p.playing?<><path d="M8 5 13 7v18l-5 2z"/><path d="m24 5-5 2v18l5 2z"/></>:<><path d="m9 4 16 12L9 28z"/><path d="m5 8 0 16" opacity=".4"/></>}</svg>}</button>
+      <button className="icon-btn mini-transport" aria-label="Następny utwór" onClick={(e) => { e.stopPropagation(); animateControl(e.currentTarget,"next"); tap(); next(); }}><svg viewBox="0 0 32 32" aria-hidden="true"><g transform="translate(32 0) scale(-1 1)"><path d="M24 7 11 12v8l13 5z" opacity=".28"/><path d="M19 5 6 11v10l13 6z" opacity=".55"/><path d="M14 4 2.5 10v12L14 28z"/></g></svg></button>
     </div>
   );
 }
@@ -1607,11 +1626,11 @@ function NowPlaying({ open, onClose, onOpen, sheetRef }) {
         <NpTools />
         <Scrubber />
         <div className="np-controls np-transport" role="group" aria-label="Sterowanie muzyką">
-          <button className={'transport-key secondary'+(p.shuffle?' lit':'')} aria-label="Losowo" aria-pressed={p.shuffle} onClick={() => { tap(); toggleShuffle(); }}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h4l10 12h4m-3-3 3 3-3 3M3 18h4l3-4m4-4 3-4h4m-3-3 3 3-3 3"/></svg></button>
-          <button className="transport-key skip" aria-label="Poprzedni utwór" onClick={() => { tap(); setSlide('from-left'); prev(); }}><svg viewBox="0 0 32 32" aria-hidden="true"><g className="transport-planes"><path d="M24 7 11 12v8l13 5z" opacity=".28"/><path d="M19 5 6 11v10l13 6z" opacity=".55"/><path d="M14 4 2.5 10v12L14 28z" fill="none"/></g></svg></button>
-          <button className="transport-key transport-main" aria-label={p.playing?'Pauza':'Odtwórz'} onClick={() => { tap(ImpactStyle.Medium); toggle(); }}>{p.loading ? <span className="spin big" /> : <svg viewBox="0 0 32 32" aria-hidden="true">{p.playing?<><path d="M8 5 13 7v18l-5 2z"/><path d="m24 5-5 2v18l5 2z"/></>:<><path d="m9 4 16 12L9 28z"/><path d="m5 8 0 16" opacity=".4"/></>}</svg>}</button>
-          <button className="transport-key skip" aria-label="Następny utwór" onClick={() => { tap(); setSlide('from-right'); next(); }}><svg viewBox="0 0 32 32" aria-hidden="true"><g transform="translate(32 0) scale(-1 1)"><g className="transport-planes"><path d="M24 7 11 12v8l13 5z" opacity=".28"/><path d="M19 5 6 11v10l13 6z" opacity=".55"/><path d="M14 4 2.5 10v12L14 28z" fill="none"/></g></g></svg></button>
-          <button className={'transport-key secondary'+(p.repeat!=='off'?' lit':'')} aria-label={p.repeat==='one'?'Powtarzaj utwór':p.repeat==='all'?'Powtarzaj kolejkę':'Powtarzanie wyłączone'} aria-pressed={p.repeat!=='off'} onClick={() => { tap(); cycleRepeat(); }}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11V8l4-3h14m-4-3 4 3-4 3M21 13v3l-4 3H3m4-3-4 3 4 3"/></svg>{p.repeat==='one'&&<b className="transport-one">1</b>}</button>
+          <button className={'transport-key secondary'+(p.shuffle?' lit':'')} aria-label="Losowo" aria-pressed={p.shuffle} onClick={(e) => { animateControl(e.currentTarget,"shuffle"); tap(); toggleShuffle(); }}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h4l10 12h4m-3-3 3 3-3 3M3 18h4l3-4m4-4 3-4h4m-3-3 3 3-3 3"/></svg></button>
+          <button className="transport-key skip" aria-label="Poprzedni utwór" onClick={(e) => { animateControl(e.currentTarget,"prev"); tap(); setSlide('from-left'); prev(); }}><svg viewBox="0 0 32 32" aria-hidden="true"><g className="transport-planes"><path d="M24 7 11 12v8l13 5z" opacity=".28"/><path d="M19 5 6 11v10l13 6z" opacity=".55"/><path d="M14 4 2.5 10v12L14 28z" fill="none"/></g></svg></button>
+          <button className="transport-key transport-main" aria-label={p.playing?'Pauza':'Odtwórz'} onClick={(e) => { animateControl(e.currentTarget,"toggle"); tap(ImpactStyle.Medium); toggle(); }}>{p.loading ? <span className="spin big" /> : <svg viewBox="0 0 32 32" aria-hidden="true">{p.playing?<><path d="M8 5 13 7v18l-5 2z"/><path d="m24 5-5 2v18l5 2z"/></>:<><path d="m9 4 16 12L9 28z"/><path d="m5 8 0 16" opacity=".4"/></>}</svg>}</button>
+          <button className="transport-key skip" aria-label="Następny utwór" onClick={(e) => { animateControl(e.currentTarget,"next"); tap(); setSlide('from-right'); next(); }}><svg viewBox="0 0 32 32" aria-hidden="true"><g transform="translate(32 0) scale(-1 1)"><g className="transport-planes"><path d="M24 7 11 12v8l13 5z" opacity=".28"/><path d="M19 5 6 11v10l13 6z" opacity=".55"/><path d="M14 4 2.5 10v12L14 28z" fill="none"/></g></g></svg></button>
+          <button className={'transport-key secondary'+(p.repeat!=='off'?' lit':'')} aria-label={p.repeat==='one'?'Powtarzaj utwór':p.repeat==='all'?'Powtarzaj kolejkę':'Powtarzanie wyłączone'} aria-pressed={p.repeat!=='off'} onClick={(e) => { animateControl(e.currentTarget,"repeat"); tap(); cycleRepeat(); }}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11V8l4-3h14m-4-3 4 3-4 3M21 13v3l-4 3H3m4-3-4 3 4 3"/></svg>{p.repeat==='one'&&<b className="transport-one">1</b>}</button>
         </div>
       </div>
     </div>
@@ -1842,9 +1861,9 @@ export default function App() {
       </main>
       <MiniPlayer hidden={npOpen} onDrag={dragSheet} onDragEnd={endDragSheet} />
       <nav className="tabs">
-        <button className={tab === 'home' ? 'on' : ''} onClick={() => switchTab('home')}><svg viewBox="0 0 24 24" aria-hidden="true"><path className="nav-signature" d="M3 13 12 4l9 9"/><path d="M5.5 14v5.5h13V14"/><path className="nav-signature" d="M9.5 19.5v-4h5v4M2 22h20"/></svg><span>Główna</span></button>
-        <button className={tab === 'search' ? 'on' : ''} onClick={() => switchTab('search')}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 15a7.5 7.5 0 1 0-2 2l5 4"/><path className="nav-signature" d="M6.5 10.5a4 4 0 0 1 4-4M18 3v3m-1.5-1.5h3"/></svg><span>Szukaj</span></button>
-        <button className={tab === 'library' ? 'on' : ''} onClick={() => switchTab('library')}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 4 4 2v12l-4 2" opacity=".55"/><path d="m19 5 3 2v10l-3 2" opacity=".3"/><path d="M3 6 13 3v18L3 18z"/><path className="nav-signature" d="M6 14.5v-5l4-1v5m-4 1a1.2 1.2 0 1 1-1.2-1.2H6m4-.8a1.2 1.2 0 1 1-1.2-1.2H10"/></svg><span>Biblioteka</span></button>
+        <button className={tab === 'home' ? 'on' : ''} onClick={(e) => { animateControl(e.currentTarget,"tab"); switchTab('home'); }}><svg viewBox="0 0 24 24" aria-hidden="true"><path className="nav-signature" d="M3 13 12 4l9 9"/><path d="M5.5 14v5.5h13V14"/><path className="nav-signature" d="M9.5 19.5v-4h5v4M2 22h20"/></svg><span>Główna</span></button>
+        <button className={tab === 'search' ? 'on' : ''} onClick={(e) => { animateControl(e.currentTarget,"tab"); switchTab('search'); }}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 15a7.5 7.5 0 1 0-2 2l5 4"/><path className="nav-signature" d="M6.5 10.5a4 4 0 0 1 4-4M18 3v3m-1.5-1.5h3"/></svg><span>Szukaj</span></button>
+        <button className={tab === 'library' ? 'on' : ''} onClick={(e) => { animateControl(e.currentTarget,"tab"); switchTab('library'); }}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 4 4 2v12l-4 2" opacity=".55"/><path d="m19 5 3 2v10l-3 2" opacity=".3"/><path d="M3 6 13 3v18L3 18z"/><path className="nav-signature" d="M6 14.5v-5l4-1v5m-4 1a1.2 1.2 0 1 1-1.2-1.2H6m4-.8a1.2 1.2 0 1 1-1.2-1.2H10"/></svg><span>Biblioteka</span></button>
       </nav>
       <OtaPill />
       <CarMode />

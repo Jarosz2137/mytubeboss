@@ -1180,7 +1180,7 @@ html.np-open .scroller .mq-track, html.bg-idle .mq-track { will-change: auto; }
 .np-transport .transport-main svg path { fill:none; stroke-width:1.55; }
 .np-transport .skip svg { width:39px; height:39px; stroke-width:1.45; }
 .np-transport .transport-planes { fill:none; transform-box:fill-box; transform-origin:center; }
-.np-transport .skip:active .transport-planes { animation:transportFlip .18s ease-out both; }
+.np-transport .skip:active .transport-planes { animation:none; }
 @keyframes transportFlip { 0% { transform:translateX(0); } 45% { transform:translateX(-2px); } 100% { transform:translateX(0); } }
 .np-transport .secondary svg { stroke-width:1.5; }
 .np-transport .transport-main .spin { border-color:rgba(255,255,255,.2);border-top-color:currentColor; }
