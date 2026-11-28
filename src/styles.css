@@ -1185,3 +1185,8 @@ html.np-open .scroller .mq-track, html.bg-idle .mq-track { will-change: auto; }
 .np-transport .secondary svg { stroke-width:1.5; }
 .np-transport .transport-main .spin { border-color:rgba(255,255,255,.2);border-top-color:currentColor; }
 @media(prefers-reduced-motion:reduce) { .np-transport .skip:active .transport-planes { animation:none; } }
+
+/* Match mini player to full-size coverflow transport. */
+.mini .mini-transport svg { display:block; width:27px; height:27px; fill:none; stroke:currentColor; stroke-width:1.55; stroke-linecap:round; stroke-linejoin:round; }
+.mini .mini-transport { color:#fff; }
+.mini .mini-transport:active { opacity:.65; }

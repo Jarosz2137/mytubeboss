@@ -930,8 +930,8 @@ function MiniPlayer({ hidden, onDrag, onDragEnd }) {
         <div className="mini-title"><Marquee text={t.title} /></div>
         <div className="mini-sub">{p.error ? p.error : t.subtitle}</div>
       </div>
-      <button className="icon-btn pop" key={p.playing ? 'pa' : 'pl'} onClick={(e) => { e.stopPropagation(); tap(); toggle(); }}>{p.loading ? <span className="spin" /> : p.playing ? Icon.pause : Icon.play}</button>
-      <button className="icon-btn" onClick={(e) => { e.stopPropagation(); tap(); next(); }}>{Icon.next}</button>
+      <button className="icon-btn mini-transport" aria-label={p.playing ? 'Pauza' : 'Odtwórz'} onClick={(e) => { e.stopPropagation(); tap(); toggle(); }}>{p.loading ? <span className="spin" /> : <svg viewBox="0 0 32 32" aria-hidden="true">{p.playing?<><path d="M8 5 13 7v18l-5 2z"/><path d="m24 5-5 2v18l5 2z"/></>:<><path d="m9 4 16 12L9 28z"/><path d="m5 8 0 16" opacity=".4"/></>}</svg>}</button>
+      <button className="icon-btn mini-transport" aria-label="Następny utwór" onClick={(e) => { e.stopPropagation(); tap(); next(); }}><svg viewBox="0 0 32 32" aria-hidden="true"><g transform="translate(32 0) scale(-1 1)"><path d="M24 7 11 12v8l13 5z" opacity=".28"/><path d="M19 5 6 11v10l13 6z" opacity=".55"/><path d="M14 4 2.5 10v12L14 28z"/></g></svg></button>
     </div>
   );
 }
