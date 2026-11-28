@@ -24,6 +24,40 @@ export const onBeat = (f) => { subs.add(f); return () => subs.delete(f); };
 export let beatStatus = '';
 const status = (s) => { beatStatus = s; subs.forEach((f) => f(enabled)); };
 
+// Versioned binary analysis cache. IndexedDB failures never block playback.
+let dbPromise;
+function db() {
+  if (!dbPromise) dbPromise = new Promise((resolve,reject) => {
+    const req = indexedDB.open('mtb-beat-v1',1);
+    req.onupgradeneeded = () => req.result.createObjectStore('tracks',{keyPath:'id'});
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = req.onblocked = () => reject(req.error || Error('cache unavailable'));
+  }).catch(()=>null);
+  return dbPromise;
+}
+async function readAnalysis(id) {
+  const d=await db(); if(!d) return null;
+  return new Promise(resolve=>{
+    const req=d.transaction('tracks').objectStore('tracks').get(id);
+    req.onsuccess=()=>resolve(req.result || null); req.onerror=()=>resolve(null);
+  });
+}
+async function saveAnalysis(id,env,bands,drop) {
+  const bytes=env.byteLength+bands.reduce((n,b)=>n+b.byteLength,0);
+  if(bytes>4*1024*1024) return;
+  const d=await db(); if(!d) return;
+  const tx=d.transaction('tracks','readwrite'), store=tx.objectStore('tracks');
+  store.put({id,env,bands,drop,bytes,at:Date.now()});
+  const req=store.getAll();
+  req.onsuccess=()=>{
+    let total=0;
+    req.result.sort((a,b)=>b.at-a.at).forEach((v,i)=>{
+      total+=v.bytes;
+      if(i>=48 || total>24*1024*1024) store.delete(v.id);
+    });
+  };
+}
+
 let analysing = false, queued = null;
 function analyse(id, parts, mime) {
   if (energyLevel() >= 3 || !id || envs.has(id) || !parts?.length || document.hidden || current()?.id !== id) return;
@@ -44,6 +78,18 @@ async function analyseNow(id, parts, mime) {
   busy.add(id);
   const finishProfile = profJob('beat.analysis');
   try {
+    const hit = await readAnalysis(id).catch(()=>null);
+    if (document.hidden || current()?.id !== id || energyLevel() >= 3) return;
+    if (hit?.env instanceof Float32Array && hit.bands?.length === BAND_HZ.length && hit.bands.every(x=>x instanceof Float32Array && x.length===hit.env.length)) {
+      envs.set(id,hit.env); spectra.set(id,hit.bands);
+      if(Number.isFinite(hit.drop)) drops.set(id,hit.drop);
+      while(envs.size>3) envs.delete(envs.keys().next().value);
+      while(spectra.size>3) spectra.delete(spectra.keys().next().value);
+      while(drops.size>20) drops.delete(drops.keys().next().value);
+      pending.delete(id); dropSubs.forEach(f=>f()); status('');
+      console.info('[beat] disk cache hit',id);
+      return;
+    }
     const OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
     const bytes = await new Blob(parts, { type: (mime || '').split(';')[0] }).arrayBuffer();
     const finishDecode = profJob('beat.decode');
@@ -111,6 +157,7 @@ async function analyseNow(id, parts, mime) {
     envs.set(id, env);
     pending.delete(id);
     while (envs.size > 3) envs.delete(envs.keys().next().value);
+    void saveAnalysis(id,env,bands,drops.get(id)).catch(()=>{});
     console.info('[beat] analysed', id, n, 'frames');
     if (current()?.id === id) status('');
   } catch (e) {
