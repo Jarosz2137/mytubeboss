@@ -1099,6 +1099,3 @@ html.np-open .scroller *, html.np-open .ambient * { animation-play-state: paused
 .sc-hex2 .sc-shape { transform: translate(-50%, -50%) scale(calc(.2 + var(--i) * .17)); }
 .sc-prism2 .sc-shape { transform: translate(-50%, -50%) rotate(calc(var(--i) * 20deg)) scale(calc(.25 + var(--i) * .14)); }
 .sc-hex2, .sc-prism2 { will-change: auto; }
-
-/* canvas backdrop: no filter, no background-image transition */
-.np-bg.np-bg-c { inset: -10%; width: 120%; height: 120%; filter: none; transform: none; transition: none; background: none; }
