@@ -1082,3 +1082,8 @@ h1.big { font-size: 36px; margin: 22px 0 16px; background: linear-gradient(90deg
 /* only the visible screen animates: player closed -> its scene/cover/bars freeze; player open -> the app behind it freezes */
 html:not(.np-open) .np *, html:not(.np-open) .np *::before, html:not(.np-open) .np *::after { animation-play-state: paused !important; }
 html.np-open .scroller *, html.np-open .ambient * { animation-play-state: paused !important; }
+
+/* Geometry scenes: viewport-sized backing store, no oversized SVG layers. */
+.sc-geometry { position:absolute; inset:0; width:100%; height:100%; display:block; color:var(--cx); }
+.sc-geometry.geometry-prism { color:var(--cx2); }
+.np-scene.sc-geometry-wrap { will-change:auto; }

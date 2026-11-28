@@ -1051,33 +1051,96 @@ const STARS = Array.from({ length: 46 }, (_, i) => {
   return { '--a': `${r(1) * 360}deg`, '--d': `${2.2 + r(2) * 2.6}s`, '--o': `${-r(3) * 4}s`, '--s': `${2 + r(4) * 3}px` };
 });
 function sceneFor(id = '') { let h = 0; for (const ch of id) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return SCENES[h % SCENES.length]; }
+// One clipped canvas for the three vector scenes; reuse the existing beat frame clock.
+function GeometryScene({ kind, id }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    const canvas = ref.current;
+    const ctx = canvas?.getContext('2d');
+    if (!ctx) return;
+    const sheet = canvas.closest('.np');
+    let w = 0, h = 0, ratio = 1, elapsed = 0, last = 0, drawn = false;
+    let color = '#65d9ff', colorAt = -Infinity, bass = 0, mid = 0, kick = 0;
+    const resize = () => {
+      w = canvas.clientWidth; h = canvas.clientHeight;
+      if (!w || !h) return;
+      ratio = Math.min(window.devicePixelRatio || 1, 1.5, 1200 / Math.max(w, h));
+      canvas.width = Math.max(1, Math.round(w * ratio));
+      canvas.height = Math.max(1, Math.round(h * ratio));
+      drawn = false;
+    };
+    const observer = new ResizeObserver(resize);
+    observer.observe(canvas); resize();
+    const poly = (points, scale, angle, alpha, width) => {
+      ctx.save(); ctx.rotate(angle); ctx.scale(scale, scale);
+      ctx.globalAlpha = alpha; ctx.lineWidth = width / scale;
+      ctx.beginPath();
+      points.forEach(([x,y], i) => i ? ctx.lineTo(x,y) : ctx.moveTo(x,y));
+      ctx.closePath(); ctx.stroke(); ctx.restore();
+    };
+    const hex = [[0,-80],[69,-40],[69,40],[0,80],[-69,40],[-69,-40]];
+    const tri = [[0,-70],[61,35],[-61,35]];
+    const off = onFrame((levels, now) => {
+      if (!w || !h || !sheet?.classList.contains('open')) { last = 0; return; }
+      const playing = sheet.classList.contains('is-playing');
+      if (!playing && drawn) { last = 0; return; }
+      const dt = last ? Math.min(50, now-last) : 0;
+      // Cap drawing at ~60 Hz, not the whole UI. No catch-up work after hiding.
+      if (last && now-last < 15) return;
+      last = now;
+      if (playing) elapsed += dt / 1000;
+      if (now-colorAt > 750 || !drawn) {
+        color = getComputedStyle(canvas).color; colorAt = now;
+      }
+      const reactive = sheet.classList.contains('beat-on') && playing;
+      const b = reactive && levels ? (levels[0]+levels[1])/2 : 0;
+      const m = reactive && levels ? (levels[2]+levels[3]+levels[4])/3 : 0;
+      kick = Math.max(b, kick * .82);
+      bass += (b-bass)*.35; mid += (m-mid)*.35;
+      const unit = Math.max(w,h)*1.15/200;
+      const pulse = kind === 'hex' ? 1+bass*.14+kick*.1 : kind === 'prism' ? 1+mid*.18+kick*.1 : 1+kick*.06;
+      ctx.setTransform(ratio,0,0,ratio,0,0);
+      ctx.clearRect(0,0,w,h);
+      ctx.translate(w/2,h*.38);
+      ctx.strokeStyle = color; ctx.lineJoin = 'round';
+      ctx.scale(unit*pulse,unit*pulse);
+      if (kind === 'hex') {
+        for(let i=0;i<5;i++) {
+          const s=.25+i*.22;
+          poly(hex,s,elapsed*2*Math.PI/(30+i*6)*(i%2?-1:1),.5*(reactive ? .65+kick*.35 : 1),(reactive?1:.6)*s);
+        }
+      } else if (kind === 'prism') {
+        for(let i=0;i<6;i++) {
+          const phase=(1-Math.cos((elapsed+i*1.4)*2*Math.PI/14))/2, s=.3+i*.2;
+          poly(tri,s,(i*20+phase*60)*Math.PI/180,(.5+.05*phase)*(reactive ? .65+kick*.35 : 1),(reactive?1:.6)*s);
+        }
+      } else {
+        for(let i=0;i<8;i++) {
+          const p=((elapsed+i)%8)/8, s=.02+1.08*p;
+          ctx.save(); ctx.rotate((p*90+mid*7)*Math.PI/180); ctx.scale(s,s);
+          ctx.globalAlpha=.45*Math.min(p/.2,(1-p)/.8);
+          ctx.lineWidth=1.5/(unit*pulse*s);
+          ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(-60,-60,120,120,9); else ctx.rect(-60,-60,120,120); ctx.stroke(); ctx.restore();
+        }
+      }
+      drawn = true;
+    });
+    return () => { off(); observer.disconnect(); };
+  }, [kind,id]);
+  return <canvas ref={ref} className={'sc-geometry geometry-'+kind} />;
+}
 function Scene({ id }) {
   const kind = sceneFor(id);
+  const geometry = kind === 'hex' || kind === 'prism' || kind === 'tunnel';
   return (
-    <div className={`np-scene sc-${kind}`} key={kind} aria-hidden="true">
+    <div className={`np-scene ${geometry ? 'sc-geometry-wrap' : 'sc-'+kind}`} key={kind} aria-hidden="true">
       {kind === 'grid' && (<><div className="np-sun" /><div className="np-grid" /></>)}
       {kind === 'rings' && (<div className="sc-rings">{[0, 1, 2, 3, 4, 5].map((i) => <i key={i} style={{ '--i': i }} />)}</div>)}
-      {kind === 'tunnel' && (
-        <svg className="sc-tunnel2" viewBox="-100 -100 200 200">
-          {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => <rect key={i} style={{ '--i': i }} x="-60" y="-60" width="120" height="120" rx="9" />)}
-        </svg>
-      )}
-      {kind === 'hex' && (
-        <svg className="sc-hex" viewBox="-100 -100 200 200">
-          {[0, 1, 2, 3, 4].map((i) => (
-            <polygon key={i} style={{ '--i': i }} points="0,-80 69,-40 69,40 0,80 -69,40 -69,-40" />
-          ))}
-        </svg>
-      )}
+      {geometry && <GeometryScene kind={kind} id={id} />}
       {kind === 'dots' && (
         <div className="sc-stars">
           {STARS.map((st, i) => <i key={i} style={st} />)}
         </div>
-      )}
-      {kind === 'prism' && (
-        <svg className="sc-prism" viewBox="-100 -100 200 200">
-          {[0, 1, 2, 3, 4, 5].map((i) => <polygon key={i} style={{ '--i': i }} points="0,-70 61,35 -61,35" />)}
-        </svg>
       )}
     </div>
   );
