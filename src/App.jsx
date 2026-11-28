@@ -1207,12 +1207,14 @@ function LyricsPanel({ t }) {
   const [ly, setLy] = useState(undefined);
   const box = useRef(null);
   useEffect(() => { setLy(undefined); let alive = true; getLyrics(t).then((r) => alive && setLy(r)); return () => { alive = false; }; }, [t?.id]);
-  const cur = useTime(({time}) => {
-    if (!ly?.synced) return -1;
-    let lo=0, hi=ly.lines.length;
-    while(lo<hi) { const mid=(lo+hi)>>>1; if(ly.lines[mid].t<=time+.25) lo=mid+1; else hi=mid; }
-    return lo-1;
-  });
+  const { time } = useTime();
+  let cur = -1;
+  if (ly?.synced) {
+    for (let i = 0; i < ly.lines.length; i++) {
+      if (ly.lines[i].t <= time + .25) cur = i;
+      else break;
+    }
+  }
   useEffect(() => {
     const el = box.current?.querySelector('.ly-line.on');
     if (el && box.current) box.current.scrollTo({ top: el.offsetTop - box.current.clientHeight * 0.38, behavior: 'smooth' });
