@@ -34,6 +34,7 @@ let state = {
 };
 const subs = new Set();
 const set = (patch) => {
+  if (Object.keys(patch).every(k => Object.is(state[k],patch[k]))) return;
   state = { ...state, ...patch };
   subs.forEach((f) => f());
 };
@@ -66,6 +67,19 @@ export function pickOutput() {
 
 let loadToken = 0;
 let lastBlobUrl = null;
+let activeMse = null, cancelTry = null;
+function releaseMedia() {
+  cancelTry?.();
+  activeMse?.dispose();
+  activeMse = null;
+  if (lastBlobUrl) { URL.revokeObjectURL(lastBlobUrl); lastBlobUrl = null; }
+}
+function pruneDownloads() {
+  const keep = new Set([current()?.id, state.queue[state.index+1]?.id]);
+  for (const [key,job] of inflight) if (!keep.has(job.id)) {
+    inflight.delete(key); job.listeners.clear(); job.controller.abort();
+  }
+}
 
 // Ready-to-play audio for upcoming tracks: { mime, durationMs, parts }.
 const ready = new Map();
@@ -75,7 +89,7 @@ function sharedSabr(id, callbacks = {}, client = 'WEB') {
   const key = client + ':' + id;
   let job = inflight.get(key);
   if (!job) {
-    job = { meta: null, chunks: [], progress: null, listeners: new Set(), promise: null };
+    job = { id, controller: new AbortController(), meta: null, chunks: [], progress: null, listeners: new Set(), promise: null };
     inflight.set(key, job);
     const finishDownload = profJob('sabr.'+client);
     let profileBytes = 0;
@@ -88,7 +102,7 @@ function sharedSabr(id, callbacks = {}, client = 'WEB') {
       onMeta: m => { job.meta = m; emit('onMeta', m); },
       onChunk: c => { profileBytes += c.byteLength || c.length || 0; job.chunks.push(c); emit('onChunk', c); },
       onProgress: n => { job.progress = n; emit('onProgress', n); },
-    }, client)).finally(() => {
+    }, client, job.controller.signal)).finally(() => {
       finishDownload(profileBytes);
       if (inflight.get(key) === job) inflight.delete(key);
     });
@@ -114,7 +128,7 @@ async function prefetchNext() {
   prefetching.add(nextTrack.id);
   try {
     const r = await sharedSabr(nextTrack.id, {}, 'WEB');
-    if (current()?.id !== nextTrack.id) {
+    if (current()?.id !== nextTrack.id && state.queue[state.index+1]?.id === nextTrack.id) {
       ready.set(nextTrack.id, r);
       while (ready.size > 3) ready.delete(ready.keys().next().value);
     }
@@ -133,36 +147,53 @@ const MSClass = () => window.ManagedMediaSource || window.MediaSource || null;
 function makeMse(meta, startAt, token) {
   const MS = MSClass();
   if (!MS || (MS.isTypeSupported && !MS.isTypeSupported(meta.mime))) return null;
+  if (token !== loadToken) return null;
+  releaseMedia();
+  const media = el;
   const ms = new MS();
+  let disposed = false, objectUrl = null;
   const queue = [];
   let sb = null, ended = false, first = true;
-  try { el.disableRemotePlayback = true; } catch { /* */ }
-  el.removeAttribute('src');
-  if (MS !== window.MediaSource && 'srcObject' in el) {
-    try { el.srcObject = ms; } catch { el.src = URL.createObjectURL(ms); }
+  try { media.disableRemotePlayback = true; } catch { /* */ }
+  media.removeAttribute('src');
+  if (MS !== window.MediaSource && 'srcObject' in media) {
+    try { media.srcObject = ms; } catch { media.src = (objectUrl = URL.createObjectURL(ms)); }
   } else {
-    el.src = URL.createObjectURL(ms);
+    media.src = (objectUrl = URL.createObjectURL(ms));
   }
   const pump = () => {
-    if (!sb || sb.updating) return;
+    if (disposed || token !== loadToken || !sb || sb.updating) return;
     if (queue.length) { try { sb.appendBuffer(queue.shift()); } catch (e) { console.warn('[mse] append failed', e?.message); } return; }
     if (ended && ms.readyState === 'open') { try { ms.endOfStream(); } catch { /* */ } }
   };
-  ms.addEventListener('sourceopen', () => {
+  const onOpen = () => {
+    if (disposed || token !== loadToken) return;
     try { sb = ms.addSourceBuffer(meta.mime); } catch (e) { console.warn('[mse] addSourceBuffer', e?.message); return; }
     if (meta.durationMs) { try { ms.duration = meta.durationMs / 1000; } catch { /* */ } }
-    sb.addEventListener('updateend', () => {
+    sb.addEventListener('updateend', onUpdate);
+    pump();
+  };
+  const onUpdate = () => {
+      if (disposed || token !== loadToken) return;
       if (first) {
         first = false;
-        if (startAt) { try { el.currentTime = startAt; } catch { /* */ } }
-        if (token === loadToken) el.play().catch(() => {});
+        if (startAt) { try { media.currentTime = startAt; } catch { /* */ } }
+        if (token === loadToken) media.play().catch(() => {});
       }
       pump();
-    });
-    pump();
-  }, { once: true });
+  };
+  ms.addEventListener('sourceopen', onOpen, { once: true });
   console.info('[mse] using', MS === window.MediaSource ? 'MediaSource' : 'ManagedMediaSource');
-  return { push(c) { queue.push(c); pump(); }, end() { ended = true; pump(); } };
+  activeMse = { push(c) { if (!disposed) { queue.push(c); pump(); } }, end() { ended = true; pump(); }, dispose() {
+    disposed = true; queue.length = 0;
+    ms.removeEventListener('sourceopen',onOpen);
+    sb?.removeEventListener('updateend',onUpdate);
+    try { if (sb?.updating && ms.readyState === 'open') sb.abort(); } catch {}
+    try { if (media.srcObject === ms) media.srcObject = null; } catch {}
+    if (objectUrl) { if (media.src === objectUrl) { media.removeAttribute('src'); media.load(); } URL.revokeObjectURL(objectUrl); }
+    sb = null;
+  }};
+  return activeMse;
 }
 
 function blobOf(r) {
@@ -171,26 +202,26 @@ function blobOf(r) {
 
 // Resolves true once the element actually starts, false on error/timeout.
 function tryPlay(url, startAt, token) {
-  return new Promise((resolve) => {
+  if (token !== loadToken) { if (url?.startsWith('blob:')) URL.revokeObjectURL(url); return Promise.resolve(false); }
+  releaseMedia();
+  const media = el;
+  if (url?.startsWith('blob:')) lastBlobUrl = url;
+  return new Promise(resolve => {
     let done = false;
-    const finish = (ok) => {
-      if (done) return;
-      done = true;
-      el.removeEventListener('playing', onOk);
-      el.removeEventListener('error', onErr);
-      clearTimeout(t);
-      resolve(ok);
+    const onMeta = () => { if (token === loadToken && startAt) { try { media.currentTime = startAt; } catch {} } };
+    const finish = ok => {
+      if (done) return; done = true;
+      media.removeEventListener('playing',onOk); media.removeEventListener('error',onErr);
+      media.removeEventListener('loadedmetadata',onMeta); clearTimeout(t);
+      if (cancelTry === cancel) cancelTry = null;
+      resolve(ok && token === loadToken);
     };
-    const onOk = () => finish(true);
-    const onErr = () => finish(false);
-    const t = setTimeout(() => finish(false), 15000);
-    el.addEventListener('playing', onOk);
-    el.addEventListener('error', onErr);
-    try { el.srcObject = null; } catch { /* */ }
-    el.src = url;
-    if (startAt) el.addEventListener('loadedmetadata', () => { el.currentTime = startAt; }, { once: true });
-    el.play().catch(() => {});
-    if (token !== loadToken) finish(false);
+    const onOk = () => finish(true), onErr = () => finish(false), cancel = () => finish(false);
+    const t = setTimeout(cancel,15000); cancelTry = cancel;
+    media.addEventListener('playing',onOk); media.addEventListener('error',onErr);
+    if (startAt) media.addEventListener('loadedmetadata',onMeta,{once:true});
+    try { media.srcObject = null; } catch {}
+    media.src = url; media.play().catch(() => {});
   });
 }
 
@@ -204,6 +235,8 @@ async function load(startAt = 0) {
   const track = current();
   if (!track) return;
   const token = ++loadToken;
+  releaseMedia();
+  pruneDownloads();
   const mode = state.mode;
   const log = [];
   set({ loading: true, error: '', guestLimited: false, loginPrompt: false });
@@ -271,6 +304,7 @@ async function load(startAt = 0) {
             if (token !== loadToken) return;
             if (hls && await tryPlay(hls, el.currentTime || pos, token)) { done(); return; }
           } catch { /* keep buffered audio */ }
+          if (token !== loadToken) return;
           suppressErrors = false;
           set({ error: 'Bez logowania YouTube dał tylko część utworu' });
           return;
@@ -314,8 +348,8 @@ async function load(startAt = 0) {
     }
   }
 
-  suppressErrors = false;
   if (token !== loadToken) return;
+  suppressErrors = false;
   console.error('playback failed', log);
   // Track simply not available (removed, region-locked, invalid id) -> skip it, don't stall the queue.
   const unavailable = log.some((l) => /unavailable|niedost|invalid|login required|Music queue was empty/i.test(l));
@@ -393,6 +427,7 @@ export function setMode(mode) {
   if (mode === state.mode) return;
   const at = el.currentTime || 0;
   const old = el;
+  releaseMedia();
   el = mode === 'video' ? videoEl : audioEl;
   suppressErrors = true;
   old.pause();

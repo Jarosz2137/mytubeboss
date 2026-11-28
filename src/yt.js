@@ -633,7 +633,9 @@ export async function sabrAudioBlobUrl(id, onProgress, client = 'WEB') {
 }
 
 // Streams the audio track; calls onMeta once (full mime + duration) and onChunk per piece.
-export async function sabrAudioChunks(id, { onMeta, onChunk, onProgress } = {}, client = 'WEB') {
+export async function sabrAudioChunks(id, { onMeta, onChunk, onProgress } = {}, client = 'WEB', signal) {
+  const check = () => { if (signal?.aborted) throw new DOMException('Cancelled','AbortError'); };
+  check();
   const { yt: mainYT, minter, po_token, fetchFn, binding, visitorData, freshYT } = await getPlayYT();
   let yt = mainYT;
   const anonymous = !(binding && binding !== visitorData);
@@ -650,6 +652,7 @@ export async function sabrAudioChunks(id, { onMeta, onChunk, onProgress } = {}, 
     };
   };
   const first = await loadInfo();
+  check();
   const info = first.info;
   const sd = info.streaming_data;
   const ps = info.playability_status;
@@ -709,6 +712,9 @@ export async function sabrAudioChunks(id, { onMeta, onChunk, onProgress } = {}, 
       (async () => { const r = videoStream.getReader(); for (;;) { const { done } = await r.read(); if (done) break; } })().catch(() => {});
     }
     const reader = audioStream.getReader();
+    const abort = () => { Promise.resolve(sabr.abort()).catch(()=>{}); reader.cancel().catch(()=>{}); };
+    signal?.addEventListener('abort',abort,{once:true});
+    if (signal?.aborted) abort();
     let lastChunk = Date.now();
     let cut = false;
     let snap = null;
@@ -735,6 +741,7 @@ export async function sabrAudioChunks(id, { onMeta, onChunk, onProgress } = {}, 
         for (;;) {
           let res;
           try { res = await reader.read(); } catch (e) { if (cut) break; throw e; }
+          check();
           if (res.done) break;
           parts.push(res.value);
           onChunk?.(res.value);
@@ -746,15 +753,17 @@ export async function sabrAudioChunks(id, { onMeta, onChunk, onProgress } = {}, 
         if (sabrErr && !cut) throw sabrErr;
         resolve({ cut, endMs: bufferedMs, snapshot: snap, gained: bytes - startBytes });
       } catch (e) { clearInterval(watchdog); reject(e); }
+      finally { signal?.removeEventListener('abort',abort); try { reader.releaseLock(); } catch {} }
     })();
   });
 
   let startMs = 0;
   let snapshot = null;
   for (let session = 0; session < 40; session++) {
+    check();
     let r;
     try { r = await runSession(startMs, snapshot); }
-    catch (e) { if (e?.guestLimit) throw e; throw new Error('SABR: ' + (e?.message || e) + ' po ' + Math.round(bytes / 1024) + ' KB (sps ' + sps + ')'); }
+    catch (e) { check(); if (e?.guestLimit) throw e; throw new Error('SABR: ' + (e?.message || e) + ' po ' + Math.round(bytes / 1024) + ' KB (sps ' + sps + ')'); }
     const total = meta?.durationMs || durationMsTotal;
     if (!r.cut || (total && r.endMs >= total - 1500)) break;
     if (anonymous) { const e = new Error('GUEST_LIMIT'); e.guestLimit = true; e.partial = { ...meta, parts, bytes }; throw e; }
