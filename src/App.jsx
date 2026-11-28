@@ -1456,11 +1456,16 @@ function NowPlaying({ open, onClose, onOpen, sheetRef }) {
         {beat && beatStatus && <div className="beat-note">BEAT: {beatStatus}</div>}
         <div className="np-top">
           <button className="icon-btn" onClick={onClose}>{Icon.down}</button>
-          <div className={`seg ${p.mode}`}>
-            <span className="seg-pill" />
-            <button className={p.mode === 'audio' ? 'on' : ''} onClick={() => { tap(); setMode('audio'); }}>Utwór</button>
-            <button className={p.mode === 'video' ? 'on' : ''} onClick={() => { tap(); setMode('video'); }}>Teledysk</button>
-            <button className={`beat-btn ${beat ? 'on' : ''}`} onClick={() => { tap(); setBeat(!beat); }} aria-label="Puls do beatu" aria-pressed={beat}><svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"><path d="M1 8h2l2-4 3 8 3-8 2 4h2" /></svg><span>Beat</span></button>
+          <div className="np-modes" role="group" aria-label="Tryb odtwarzacza">
+            <button className={p.mode === 'audio' ? 'on' : ''} aria-pressed={p.mode === 'audio'} onClick={() => { tap(); setMode('audio'); }}>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="2.5"/><path d="M5.5 9.5a7 7 0 0 1 4-4M14.5 18.5a7 7 0 0 0 4-4"/></svg><span>Utwór</span>
+            </button>
+            <button className={p.mode === 'video' ? 'on' : ''} aria-pressed={p.mode === 'video'} onClick={() => { tap(); setMode('video'); }}>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="m10 9 5 3-5 3z"/></svg><span>Teledysk</span>
+            </button>
+            <button className={beat ? 'on' : ''} aria-label="Puls do beatu" aria-pressed={beat} onClick={() => { tap(); setBeat(!beat); }}>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h3l3-7 4 14 3-10 2 3h3"/></svg><span>Beat</span>
+            </button>
           </div>
           <div className="np-top-r">
             <button className="icon-btn" onClick={() => { tap(); if (!pickOutput()) alert('Zmień wyjście w Centrum sterowania (ikona AirPlay przy odtwarzaczu).'); }} aria-label="Wybierz urządzenie">
