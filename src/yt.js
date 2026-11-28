@@ -328,17 +328,21 @@ function tagSection(raw, sec) {
 
 const homeJobs = new Map();
 let homeTail = Promise.resolve();
+const homeCache = new Map();
 export function home(filter) {
   const key = filter || '';
   if (homeJobs.has(key)) { console.info('[home] reuse pending refresh'); return homeJobs.get(key); }
-  const job = homeTail.then(() => fetchHome(filter));
+  const job = homeTail.then(() => fetchHome(filter, key));
   homeJobs.set(key, job);
-  homeTail = job.catch(() => {});
+  homeTail = job.then(() => {}, () => {});
   const clear = () => { if (homeJobs.get(key) === job) homeJobs.delete(key); };
   job.then(clear, clear);
   return job;
 }
-async function fetchHome(filter) {
+async function fetchHome(filter, key) {
+  const cached = homeCache.get(key);
+  const pages = cached ? 1 : 3;
+  const pageSections = [];
   const started = performance.now();
   console.info('[home] refresh start');
   const yt = await getYT();
@@ -346,7 +350,8 @@ async function fetchHome(filter) {
   const chips = (() => { try { return feed.filters || []; } catch { return []; } })();
   if (filter) feed = await feed.applyFilter(filter);
   const sections = [];
-  for (let page = 0; page < 3; page++) {
+  for (let page = 0; page < pages; page++) {
+    const offset = sections.length;
     for (const raw of feed.sections || []) {
       const [sec] = toSections([raw]);
       if (!sec) continue;
@@ -355,9 +360,21 @@ async function fetchHome(filter) {
       sections.push(sec);
     }
     console.info('[home] page', page + 1, 'sections', sections.length);
-    if (page === 2 || !feed.has_continuation) break;
+    pageSections.push(sections.slice(offset));
+    if (page === pages - 1 || !feed.has_continuation) break;
     await new Promise(resolve => setTimeout(resolve, 0));
     try { feed = await feed.getContinuation(); } catch { break; }
+  }
+  if (cached && feed.has_continuation) pageSections.push(...cached.slice(1));
+  homeCache.delete(key);
+  homeCache.set(key, pageSections);
+  while (homeCache.size > 6) homeCache.delete(homeCache.keys().next().value);
+  if (cached) {
+    const seen = new Set(sections.map(s => s.kind + ':' + s.title));
+    for (const sec of pageSections.slice(1).flat()) {
+      const id = sec.kind + ':' + sec.title;
+      if (!seen.has(id)) { sections.push(sec); seen.add(id); }
+    }
   }
   // Quick picks + Listen again on top, like the YT Music app
   const order = { quick: 0, again: 1, normal: 2 };

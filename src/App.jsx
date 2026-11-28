@@ -1710,7 +1710,7 @@ export default function App() {
     let hiddenAt = 0;
     const onVis = () => {
       if (document.hidden) hiddenAt = Date.now();
-      else if (hiddenAt && Date.now() - hiddenAt > 20000) bump(tabRef.current);
+      else if (hiddenAt && Date.now() - hiddenAt > 300000 && !document.documentElement.classList.contains('np-open')) bump(tabRef.current);
     };
     document.addEventListener('visibilitychange', onVis);
     return () => document.removeEventListener('visibilitychange', onVis);
