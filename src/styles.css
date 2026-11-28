@@ -1173,3 +1173,15 @@ html.np-open .scroller .mq-track, html.bg-idle .mq-track { will-change: auto; }
 .tabs button.on svg,.tabs button:active svg { transform:none; }
 .tabs button.on::before { content:''; position:absolute; top:0; left:calc(50% - 13px); width:26px; height:2px; border-radius:0 0 2px 2px; background:var(--c1,#fff); }
 @media (orientation:landscape) { .np-transport .transport-main { width:56px;height:56px;border-radius:18px; } .np-transport .transport-key:not(.transport-main) { height:46px; } }
+
+/* Coverflow glyphs: layered, directional album planes; no filled button shell. */
+.np-transport .transport-main { background:transparent; color:#fff; border:0; border-radius:0; box-shadow:none; }
+.np-transport .transport-main svg { width:43px; height:43px; stroke-width:1.55; }
+.np-transport .transport-main svg path { fill:none; stroke-width:1.55; }
+.np-transport .skip svg { width:39px; height:39px; stroke-width:1.45; }
+.np-transport .transport-planes { fill:none; transform-box:fill-box; transform-origin:center; }
+.np-transport .skip:active .transport-planes { animation:transportFlip .18s ease-out both; }
+@keyframes transportFlip { 0% { transform:translateX(0); } 45% { transform:translateX(-2px); } 100% { transform:translateX(0); } }
+.np-transport .secondary svg { stroke-width:1.5; }
+.np-transport .transport-main .spin { border-color:rgba(255,255,255,.2);border-top-color:currentColor; }
+@media(prefers-reduced-motion:reduce) { .np-transport .skip:active .transport-planes { animation:none; } }
