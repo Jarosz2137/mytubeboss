@@ -7,7 +7,7 @@ import Darwin
 public class MTBEnergyPlugin: CAPPlugin, CAPBridgedPlugin {
     public let identifier = "MTBEnergyPlugin"
     public let jsName = "MTBEnergy"
-    public let pluginMethods = [CAPPluginMethod(name: "snapshot", returnType: CAPPluginReturnPromise)]
+    public let pluginMethods: [CAPPluginMethod] = [CAPPluginMethod(name: "snapshot", returnType: CAPPluginReturnPromise)]
     private var observers: [NSObjectProtocol] = []
     private var previousCPU: Double?
     private var previousTime: TimeInterval?
