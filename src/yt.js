@@ -326,29 +326,43 @@ function tagSection(raw, sec) {
   return 'normal';
 }
 
-let homeFeed = null;
-export async function home(filter) {
+const homeJobs = new Map();
+let homeTail = Promise.resolve();
+export function home(filter) {
+  const key = filter || '';
+  if (homeJobs.has(key)) { console.info('[home] reuse pending refresh'); return homeJobs.get(key); }
+  const job = homeTail.then(() => fetchHome(filter));
+  homeJobs.set(key, job);
+  homeTail = job.catch(() => {});
+  const clear = () => { if (homeJobs.get(key) === job) homeJobs.delete(key); };
+  job.then(clear, clear);
+  return job;
+}
+async function fetchHome(filter) {
+  const started = performance.now();
+  console.info('[home] refresh start');
   const yt = await getYT();
   let feed = await yt.music.getHomeFeed();
   const chips = (() => { try { return feed.filters || []; } catch { return []; } })();
   if (filter) feed = await feed.applyFilter(filter);
-  homeFeed = feed;
-  const raws = [...(feed.sections || [])];
-  // pull a couple more pages so there's plenty to scroll
-  for (let i = 0; i < 2 && feed.has_continuation; i++) {
-    try { feed = await feed.getContinuation(); raws.push(...(feed.sections || [])); } catch { break; }
-  }
   const sections = [];
-  for (const raw of raws) {
-    const [sec] = toSections([raw]);
-    if (!sec) continue;
-    sec.kind = tagSection(raw, sec);
-    sec.strapline = txt(raw.header?.strapline);
-    sections.push(sec);
+  for (let page = 0; page < 3; page++) {
+    for (const raw of feed.sections || []) {
+      const [sec] = toSections([raw]);
+      if (!sec) continue;
+      sec.kind = tagSection(raw, sec);
+      sec.strapline = txt(raw.header?.strapline);
+      sections.push(sec);
+    }
+    console.info('[home] page', page + 1, 'sections', sections.length);
+    if (page === 2 || !feed.has_continuation) break;
+    await new Promise(resolve => setTimeout(resolve, 0));
+    try { feed = await feed.getContinuation(); } catch { break; }
   }
   // Quick picks + Listen again on top, like the YT Music app
   const order = { quick: 0, again: 1, normal: 2 };
   sections.sort((a, b) => order[a.kind] - order[b.kind]);
+  console.info('[home] refresh ready', sections.length, 'sections', Math.round(performance.now()-started), 'ms');
   return { chips, sections };
 }
 

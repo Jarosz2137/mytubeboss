@@ -333,6 +333,9 @@ function NowChip() {
 function HomeView({ onOpen, fresh }) {
   const [chip, setChip] = useState(null);
   const s = useAsync(() => yt.home(chip), [chip, fresh]);
+  useEffect(() => {
+    if (!s.loading && s.data) console.info('[home] rendered', s.data.sections.length, 'sections');
+  }, [s.loading, s.data]);
   const [chips, setChips] = useState([]);
   useEffect(() => { if (s.data?.chips?.length && !chips.length) setChips(s.data.chips); }, [s.data]);
   return (
