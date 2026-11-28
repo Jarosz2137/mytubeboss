@@ -1,3 +1,4 @@
+import { profStart, profEnd, profJob, profReport, profilerPanel, profIsolated } from './profiler.js';
 // BEAT: pulse the cover to the bass of the playing song.
 // iOS gives Web Audio silence for MediaSource playback, so instead of analysing the live output
 // we decode the already-downloaded audio file offline (8 kHz mono, low-passed), turn it into a
@@ -40,10 +41,12 @@ async function drainAnalysis() {
 async function analyseNow(id, parts, mime) {
   if (envs.has(id) || busy.has(id) || !parts?.length) return;
   busy.add(id);
+  const finishProfile = profJob('beat.analysis');
   try {
     const OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
     const bytes = await new Blob(parts, { type: (mime || '').split(';')[0] }).arrayBuffer();
-    const decoded = await new OAC(1, RATE, RATE).decodeAudioData(bytes);
+    const finishDecode = profJob('beat.decode');
+    const decoded = await new OAC(1, RATE, RATE).decodeAudioData(bytes).finally(()=>finishDecode(bytes.byteLength));
     // Render one filter at a time (mono) so memory stays small even for long songs.
     const obsolete = () => document.hidden || current()?.id !== id;
     if (obsolete()) return;
@@ -55,7 +58,8 @@ async function analyseNow(id, parts, mime) {
       const f = off.createBiquadFilter();
       f.type = type; f.frequency.value = hz; if (q) f.Q.value = q;
       src.connect(f); f.connect(off.destination); src.start();
-      return (await off.startRendering()).getChannelData(0);
+      const finishFilter = profJob('beat.filter.'+hz);
+      return (await off.startRendering().finally(()=>finishFilter())).getChannelData(0);
     };
     const rms = (ch) => {
       const n = Math.floor(ch.length / FRAME), out = new Float32Array(n);
@@ -110,7 +114,7 @@ async function analyseNow(id, parts, mime) {
   } catch (e) {
     console.warn('[beat] analyse failed', e?.message || e);
     if (current()?.id === id) status('nie da się przeanalizować tego utworu');
-  } finally { busy.delete(id); }
+  } finally { busy.delete(id); finishProfile(); }
 }
 
 // player.js announces every fully downloaded track
@@ -157,7 +161,9 @@ function loop(now = 0) {
     L = blend.length === nextL.length ? blend : (blend = new Array(nextL.length));
     for (let k = 0; k < nextL.length; k++) L[k] = prevL[k] + (nextL[k] - prevL[k]) * a;
   }
+  const subscriberStart = profStart();
   frameSubs.forEach((f) => f(L, now));
+  profEnd('beat.subscribers', subscriberStart);
   // Adaptive quality: if frames keep coming late, drop the heavy effects (weaker / hot phones).
   // <~22 fps counts as slow; a steady 30 fps cap from iOS (heat / low power) is fine
   if (fk > 2.7 && !document.hidden) slow++; else if (slow > 0) slow -= 0.25;

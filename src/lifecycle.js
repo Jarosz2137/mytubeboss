@@ -1,3 +1,4 @@
+import { profStart, profEnd, profJob, profReport, profilerPanel, profIsolated } from './profiler.js';
 // Lifecycle probe: logs what is actually alive in each app state, so "Kopiuj logi" shows
 // whether anything keeps working in the background (instead of guessing).
 import { audioElement, videoElement } from './player.js';
@@ -69,6 +70,7 @@ function snapshot(tag) {
   const avgLag = lagN ? Math.round(lagSum / lagN) : 0;
   const nodes = document.getElementsByTagName('*').length;
   console.log(`[life] ${tag}: ukryta=${document.hidden} audio=${media(audioElement)} video=${media(videoElement)} animacje=${running}/${anims.length} scena=${scene} fps=${fps} okno=${period}ms pomiar_klatek=${Math.round(frameMs)}ms probki=${frames} p95=${p95}ms aktywne=${top} wolne_klatki=${slowF} najgorsza=${Math.round(worstF)}ms lag_śr=${avgLag}ms lag_max=${Math.round(lagMax)}ms elementy=${nodes} lite=${document.documentElement.classList.contains('lite')} ostatnio=${during()}`);
+  profReport();
   frames = 0; slowF = 0; worstF = 0; frameMs = 0; samples = []; lastF = null; windowStart = performance.now(); lagSum = 0; lagN = 0; lagMax = 0;
 }
 

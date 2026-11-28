@@ -1,3 +1,4 @@
+import { profStart, profEnd, profJob, profReport, profilerPanel, profIsolated } from './profiler.js';
 import { useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react';
 import * as yt from './yt.js';
 import { Preferences } from '@capacitor/preferences';
@@ -1081,12 +1082,14 @@ function GeometryScene({ kind, id }) {
     const hex = [[0,-80],[69,-40],[69,40],[0,80],[-69,40],[-69,-40]];
     const tri = [[0,-70],[61,35],[-61,35]];
     const off = onFrame((levels, now) => {
+      if (profIsolated('scene')) return;
       if (!w || !h || !sheet?.classList.contains('open')) { last = 0; return; }
       const playing = sheet.classList.contains('is-playing');
       if (!playing && drawn) { last = 0; return; }
       const dt = last ? Math.min(50, now-last) : 0;
       // Cap drawing at ~60 Hz, not the whole UI. No catch-up work after hiding.
       if (last && now-last < 15) return;
+      const prof = profStart();
       last = now;
       if (playing) elapsed += dt / 1000;
       if (now-colorAt > 750 || !drawn) {
@@ -1124,6 +1127,7 @@ function GeometryScene({ kind, id }) {
         }
       }
       drawn = true;
+      profEnd('canvas.'+kind, prof);
     });
     return () => { off(); observer.disconnect(); };
   }, [kind,id]);
@@ -1451,6 +1455,7 @@ function VersionLine() {
       <button className="version-line" onClick={() => (o.status === 'ready' ? applyNow() : recheck())}>
         Boss build {BUILD || 'dev'}{o.remote ? ` · serwer ${o.remote}` : ''}{label ? ` · ${label}` : ''}
       </button>
+      <button className="version-line logs" onClick={profilerPanel}>Profiler wydajności</button>
       <button className="version-line logs" onClick={() => { navigator.clipboard?.writeText(getLogs()).then(() => alert('Logi skopiowane, wklej je Claude')).catch(() => alert('Nie udało się skopiować')); }}>Kopiuj logi</button>
     </div>
   );

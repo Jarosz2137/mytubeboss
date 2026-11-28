@@ -1,3 +1,4 @@
+import { profStart, profEnd, profJob, profReport, profilerPanel, profIsolated } from './profiler.js';
 // Playback engine: one <video> element for both audio and music videos,
 // a queue, autoplay radio, and lock-screen / Dynamic Island metadata.
 import { getDownload } from './offline.js';
@@ -75,6 +76,8 @@ function sharedSabr(id, callbacks = {}, client = 'WEB') {
   if (!job) {
     job = { meta: null, chunks: [], progress: null, listeners: new Set(), promise: null };
     inflight.set(key, job);
+    const finishDownload = profJob('sabr.'+client);
+    let profileBytes = 0;
     const emit = (name, value) => {
       for (const listener of job.listeners) {
         try { listener[name]?.(value); } catch (e) { console.warn('[sabr] consumer', e?.message); }
@@ -82,9 +85,10 @@ function sharedSabr(id, callbacks = {}, client = 'WEB') {
     };
     job.promise = Promise.resolve().then(() => sabrAudioChunks(id, {
       onMeta: m => { job.meta = m; emit('onMeta', m); },
-      onChunk: c => { job.chunks.push(c); emit('onChunk', c); },
+      onChunk: c => { profileBytes += c.byteLength || c.length || 0; job.chunks.push(c); emit('onChunk', c); },
       onProgress: n => { job.progress = n; emit('onProgress', n); },
     }, client)).finally(() => {
+      finishDownload(profileBytes);
       if (inflight.get(key) === job) inflight.delete(key);
     });
   } else {
