@@ -243,7 +243,8 @@ function LoopShelf({ items, onOpen }) {
       if (!box.width || !box.height) return;
       const mid = box.left + box.width / 2;
       // Batch layout reads before writes, avoiding forced layout per card.
-      const cards = Array.from(el.children, c => ({cov:c.firstChild,r:c.getBoundingClientRect()}));
+      const cards = Array.from(el.children, c => ({cov:c.firstChild,r:c.getBoundingClientRect()}))
+        .filter(({r}) => r.right >= box.left-box.width && r.left <= box.right+box.width);
       for (const {cov,r} of cards) {
         const d = Math.max(-1.6, Math.min(1.6, (r.left + r.width / 2 - mid) / box.width));
         if (cov) {
@@ -254,8 +255,10 @@ function LoopShelf({ items, onOpen }) {
     };
     const onScroll = () => { if (!raf) raf = requestAnimationFrame(paint); };
     paint();
+    const resizeObserver = new ResizeObserver(onScroll);
+    resizeObserver.observe(el);
     el.addEventListener('scroll', onScroll, { passive: true });
-    return () => { el.removeEventListener('scroll', onScroll); if (raf) cancelAnimationFrame(raf); };
+    return () => { resizeObserver.disconnect(); el.removeEventListener('scroll', onScroll); if (raf) cancelAnimationFrame(raf); };
   }, [items, loop]);
   return (
     <div className="shelf loop" ref={ref}>
@@ -1105,13 +1108,19 @@ function GeometryScene({ kind, id }) {
     if (!ctx) return;
     const sheet = canvas.closest('.np');
     let w = 0, h = 0, ratio = 1, elapsed = 0, last = 0, drawn = false;
-    let color = '#65d9ff', colorAt = -Infinity, bass = 0, mid = 0, kick = 0;
+    let color = '#65d9ff', bass = 0, mid = 0, kick = 0;
+    let colorDirty = true;
+    const paletteChanged = () => { colorDirty = true; drawn = false; window.dispatchEvent(new Event('mtb-render-wake')); };
+    const paletteObserver = new MutationObserver(paletteChanged);
+    const app = canvas.closest('.app');
+    if (app) paletteObserver.observe(app, {attributes:true, attributeFilter:['style']});
     const resize = () => {
       w = canvas.clientWidth; h = canvas.clientHeight;
       if (!w || !h) return;
       ratio = Math.min(window.devicePixelRatio || 1, energyLevel() >= 2 ? 1 : 1.5, 1200 / Math.max(w, h));
-      canvas.width = Math.max(1, Math.round(w * ratio));
-      canvas.height = Math.max(1, Math.round(h * ratio));
+      const bw = Math.max(1, Math.round(w * ratio)), bh = Math.max(1, Math.round(h * ratio));
+      if (canvas.width !== bw) canvas.width = bw;
+      if (canvas.height !== bh) canvas.height = bh;
       drawn = false;
       window.dispatchEvent(new Event('mtb-render-wake'));
     };
@@ -1156,8 +1165,8 @@ function GeometryScene({ kind, id }) {
       const prof = profStart();
       last = now;
       if (playing) elapsed += dt / 1000;
-      if (now-colorAt > 750 || !drawn) {
-        color = getComputedStyle(canvas).color; colorAt = now;
+      if (colorDirty) {
+        color = getComputedStyle(canvas).color; colorDirty = false;
       }
       const reactive = sheet.classList.contains('beat-on') && playing;
       const b = reactive && levels ? (levels[0]+levels[1])/2 : 0;
@@ -1219,7 +1228,7 @@ function GeometryScene({ kind, id }) {
       drawn = true;
       profEnd('canvas.'+kind, prof);
     });
-    return () => { off(); observer.disconnect(); window.removeEventListener('mtb-energy', resize); };
+    return () => { off(); observer.disconnect(); paletteObserver.disconnect(); window.removeEventListener('mtb-energy', resize); };
   }, [kind,id]);
   return <canvas ref={ref} className={'sc-geometry geometry-'+kind} />;
 }
