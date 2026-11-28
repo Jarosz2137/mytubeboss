@@ -67,20 +67,56 @@ let lastBlobUrl = null;
 
 // Ready-to-play audio for upcoming tracks: { mime, durationMs, parts }.
 const ready = new Map();
-let prefetching = null;
+// Share in-flight downloads by track and client, replaying buffered chunks to a new consumer.
+const inflight = new Map();
+function sharedSabr(id, callbacks = {}, client = 'WEB') {
+  const key = client + ':' + id;
+  let job = inflight.get(key);
+  if (!job) {
+    job = { meta: null, chunks: [], progress: null, listeners: new Set(), promise: null };
+    inflight.set(key, job);
+    const emit = (name, value) => {
+      for (const listener of job.listeners) {
+        try { listener[name]?.(value); } catch (e) { console.warn('[sabr] consumer', e?.message); }
+      }
+    };
+    job.promise = Promise.resolve().then(() => sabrAudioChunks(id, {
+      onMeta: m => { job.meta = m; emit('onMeta', m); },
+      onChunk: c => { job.chunks.push(c); emit('onChunk', c); },
+      onProgress: n => { job.progress = n; emit('onProgress', n); },
+    }, client)).finally(() => {
+      if (inflight.get(key) === job) inflight.delete(key);
+    });
+  } else {
+    console.info('[sabr] reuse in-flight', id, client);
+  }
+  job.listeners.add(callbacks);
+  try {
+    if (job.meta) callbacks.onMeta?.(job.meta);
+    for (const chunk of job.chunks) callbacks.onChunk?.(chunk);
+    if (job.progress !== null) callbacks.onProgress?.(job.progress);
+  } catch (e) {
+    job.listeners.delete(callbacks);
+    return Promise.reject(e);
+  }
+  return job.promise.finally(() => job.listeners.delete(callbacks));
+}
+const prefetching = new Set();
 async function prefetchNext() {
   const nextTrack = state.queue[state.index + 1];
-  if (!nextTrack || ready.has(nextTrack.id) || prefetching === nextTrack.id) return;
-  prefetching = nextTrack.id;
+  if (!nextTrack || ready.has(nextTrack.id) || prefetching.has(nextTrack.id)) return;
+  prefetching.add(nextTrack.id);
   try {
-    const r = await sabrAudioChunks(nextTrack.id, {}, 'WEB');
-    ready.set(nextTrack.id, r);
-    while (ready.size > 3) ready.delete(ready.keys().next().value);
+    const r = await sharedSabr(nextTrack.id, {}, 'WEB');
+    if (current()?.id !== nextTrack.id) {
+      ready.set(nextTrack.id, r);
+      while (ready.size > 3) ready.delete(ready.keys().next().value);
+    }
     console.info('[prefetch] ready', nextTrack.title);
   } catch (e) {
     console.warn('[prefetch] failed', e?.message);
   } finally {
-    prefetching = null;
+    prefetching.delete(nextTrack.id);
   }
 }
 
@@ -168,7 +204,7 @@ async function load(startAt = 0) {
   setTime({ time: startAt, duration: track.duration || 0 });
   updateMediaSession();
   suppressErrors = true;
-  const done = () => { suppressErrors = false; set({ error: '' }); prefetchNext(); };
+  const done = () => { if (token !== loadToken) return; suppressErrors = false; set({ error: '' }); prefetchNext(); };
 
   if (mode === 'audio') {
     // 0) saved for offline on the phone
@@ -193,7 +229,7 @@ async function load(startAt = 0) {
     for (const sc of ['WEB', 'MWEB']) {
       let ctl = null;
       try {
-        const r = await sabrAudioChunks(track.id, {
+        const r = await sharedSabr(track.id, {
           onMeta: (m) => {
             if (token !== loadToken) return;
             if (m.durationMs) setTime({ duration: m.durationMs / 1000 });
