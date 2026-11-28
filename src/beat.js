@@ -28,8 +28,20 @@ const status = (s) => { beatStatus = s; subs.forEach((f) => f(enabled)); };
 let dbPromise;
 function db() {
   if (!dbPromise) dbPromise = new Promise((resolve,reject) => {
-    const req = indexedDB.open('mtb-beat-v1',1);
-    req.onupgradeneeded = () => req.result.createObjectStore('tracks',{keyPath:'id'});
+    const req = indexedDB.open('mtb-beat-v1',2);
+    req.onupgradeneeded = () => {
+      const d = req.result;
+      const tracks = d.objectStoreNames.contains('tracks') ? req.transaction.objectStore('tracks') : d.createObjectStore('tracks',{keyPath:'id'});
+      const meta = d.createObjectStore('metadata',{keyPath:'id'});
+      const cursor = tracks.openCursor();
+      cursor.onsuccess = () => {
+        const c = cursor.result;
+        if (!c) return;
+        const {id,bytes,at} = c.value;
+        meta.put({id,bytes,at});
+        c.continue();
+      };
+    };
     req.onsuccess = () => resolve(req.result);
     req.onerror = req.onblocked = () => reject(req.error || Error('cache unavailable'));
   }).catch(()=>null);
@@ -46,14 +58,16 @@ async function saveAnalysis(id,env,bands,drop) {
   const bytes=env.byteLength+bands.reduce((n,b)=>n+b.byteLength,0);
   if(bytes>4*1024*1024) return;
   const d=await db(); if(!d) return;
-  const tx=d.transaction('tracks','readwrite'), store=tx.objectStore('tracks');
-  store.put({id,env,bands,drop,bytes,at:Date.now()});
-  const req=store.getAll();
+  const tx=d.transaction(['tracks','metadata'],'readwrite'), store=tx.objectStore('tracks'), meta=tx.objectStore('metadata');
+  const at=Date.now();
+  store.put({id,env,bands,drop,bytes,at});
+  meta.put({id,bytes,at});
+  const req=meta.getAll();
   req.onsuccess=()=>{
     let total=0;
     req.result.sort((a,b)=>b.at-a.at).forEach((v,i)=>{
       total+=v.bytes;
-      if(i>=48 || total>24*1024*1024) store.delete(v.id);
+      if(i>=48 || total>24*1024*1024) { store.delete(v.id); meta.delete(v.id); }
     });
   };
 }

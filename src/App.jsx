@@ -26,6 +26,10 @@ const tap = (style = ImpactStyle.Light) => { Haptics.impact({ style }).catch(() 
 const marqueeVisibility = typeof IntersectionObserver !== 'undefined' ? new IntersectionObserver(entries => {
   for (const e of entries) e.target.classList.toggle('mq-visible', e.isIntersecting);
 }) : null;
+const marqueeChecks = new WeakMap();
+const marqueeResize = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(entries => {
+  for (const e of entries) marqueeChecks.get(e.target)?.();
+}) : null;
 // Long text scrolls like a car-radio display instead of being cut off.
 const Marquee = memo(function Marquee({ text }) {
   const box = useRef(null);
@@ -40,11 +44,11 @@ const Marquee = memo(function Marquee({ text }) {
     };
     const node = box.current;
     check();
-    const ro = new ResizeObserver(check);
-    ro.observe(node);
+    marqueeChecks.set(node, check);
+    marqueeResize?.observe(node);
     if (marqueeVisibility) marqueeVisibility.observe(node);
     else node.classList.add('mq-visible');
-    return () => { ro.disconnect(); marqueeVisibility?.unobserve(node); };
+    return () => { marqueeResize?.unobserve(node); marqueeChecks.delete(node); marqueeVisibility?.unobserve(node); };
 
   }, [text]);
   const dur = run ? Math.max(8, (run + 48) / 32) : 0; // ~32 px/s
