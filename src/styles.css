@@ -1190,3 +1190,14 @@ html.np-open .scroller .mq-track, html.bg-idle .mq-track { will-change: auto; }
 .mini .mini-transport svg { display:block; width:27px; height:27px; fill:none; stroke:currentColor; stroke-width:1.55; stroke-linecap:round; stroke-linejoin:round; }
 .mini .mini-transport { color:#fff; }
 .mini .mini-transport:active { opacity:.65; }
+
+/* Persistent recent searches; same quiet line-icon language as the player. */
+.search-history { margin-top:24px; }
+.search-history-head { display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px; }
+.search-history-head h2 { font-size:17px;margin:0; }
+.search-history-head button,.search-restore { color:var(--fg3);font-size:13px;padding:8px 0; }
+.search-history-row { display:flex;align-items:center;min-height:44px;border-bottom:1px solid rgba(255,255,255,.07); }
+.search-history-term { flex:1;min-width:0;display:flex;align-items:center;gap:12px;text-align:left;padding:10px 0; }
+.search-history-term span { overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
+.search-history-term svg { flex:none;width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;opacity:.55; }
+.search-history-remove { width:44px;min-height:44px;font-size:22px;color:var(--fg3); }

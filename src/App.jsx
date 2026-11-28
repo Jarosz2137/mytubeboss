@@ -408,42 +408,90 @@ function HomeView({ onOpen, fresh }) {
   );
 }
 
+// Keep a small, durable search snapshot across navigation, reloads and OTA.
+const SEARCH_KEY='mtb_search_v1';
+let searchSnapshot={q:'',term:'',data:null,history:[]};
+try {
+  const saved=JSON.parse(localStorage.getItem(SEARCH_KEY)||'null');
+  if(saved&&typeof saved.q==='string'&&Array.isArray(saved.history)) searchSnapshot={q:saved.q.slice(0,300),term:typeof saved.term==='string'?saved.term:'',data:Array.isArray(saved.data)?saved.data:null,history:saved.history.filter(x=>typeof x==='string').slice(0,30)};
+}catch{}
+function saveSearch(patch) {
+  searchSnapshot={...searchSnapshot,...patch};
+  try {
+    const json=JSON.stringify(searchSnapshot);
+    localStorage.setItem(SEARCH_KEY,json.length<=400000?json:JSON.stringify({...searchSnapshot,data:null}));
+  }catch{}
+}
 function SearchView({ onOpen }) {
-  const [q, setQ] = useState('');
-  const [sug, setSug] = useState([]);
-  const [res, setRes] = useState({ loading: false, data: null, error: '' });
-  const timer = useRef();
-
-  useEffect(() => {
+  const [q,setQ]=useState(searchSnapshot.q);
+  const [history,setHistory]=useState(searchSnapshot.history);
+  const [sug,setSug]=useState([]);
+  const [editing,setEditing]=useState(false);
+  const [res,setRes]=useState({loading:false,data:searchSnapshot.data,error:''});
+  const request=useRef(0);
+  const suggestion=useRef(0);
+  const timer=useRef();
+  const live=useRef(true);
+  useEffect(()=>{live.current=true;return()=>{live.current=false;request.current++;suggestion.current++;clearTimeout(timer.current);};},[]);
+  const change=(value)=>{
+    request.current++;
+    suggestion.current++;
     clearTimeout(timer.current);
-    if (!q.trim()) { setSug([]); return; }
-    timer.current = setTimeout(() => yt.suggestions(q).then(setSug).catch(() => {}), 220);
-  }, [q]);
-
-  const run = async (query) => {
-    const term = (query ?? q).trim();
-    if (!term) return;
-    setQ(term);
-    setSug([]);
-    document.activeElement?.blur?.();
-    setRes({ loading: true, data: null, error: '' });
-    try { setRes({ loading: false, data: await yt.search(term), error: '' }); } catch (e) { setRes({ loading: false, data: null, error: e?.message || String(e) }); }
+    const v=value.slice(0,300);
+    setQ(v);setEditing(true);setSug([]);
+    setRes(prev=>({loading:false,data:prev.data,error:''}));
+    saveSearch({q:v});
   };
-
+  useEffect(()=>{
+    clearTimeout(timer.current);
+    const token=++suggestion.current;
+    if(!editing||!q.trim()) {setSug([]);return;}
+    timer.current=setTimeout(()=>yt.suggestions(q.trim()).then(items=>{if(live.current&&token===suggestion.current)setSug(items);}).catch(()=>{}),220);
+    return()=>{clearTimeout(timer.current);suggestion.current++;};
+  },[q,editing]);
+  const run=async(query)=>{
+    const term=(query??q).trim().slice(0,300);
+    if(!term)return;
+    const token=++request.current;
+    suggestion.current++;clearTimeout(timer.current);
+    const recent=[term,...searchSnapshot.history.filter(x=>x.toLocaleLowerCase()!==term.toLocaleLowerCase())].slice(0,30);
+    setQ(term);setHistory(recent);setEditing(false);setSug([]);
+    document.activeElement?.blur?.();
+    saveSearch({q:term,term,data:null,history:recent});
+    setRes({loading:true,data:null,error:''});
+    try {
+      const data=await yt.search(term);
+      if(!live.current||token!==request.current)return;
+      saveSearch({data});
+      setRes({loading:false,data,error:''});
+    }catch(e){if(live.current&&token===request.current)setRes({loading:false,data:null,error:e?.message||String(e)});}
+  };
+  const clear=()=>{
+    request.current++;suggestion.current++;clearTimeout(timer.current);
+    setQ('');setSug([]);setEditing(false);setRes({loading:false,data:null,error:''});
+    saveSearch({q:'',term:'',data:null});
+  };
+  const remove=(term)=>{
+    const recent=searchSnapshot.history.filter(x=>x!==term);
+    setHistory(recent);saveSearch({history:recent});
+  };
   return (
     <div className="view">
       <h1 className="big">Szukaj</h1>
-      <form className="searchbar" onSubmit={(e) => { e.preventDefault(); run(); }}>
+      <form className="searchbar" onSubmit={(e)=>{e.preventDefault();run();}}>
         {Icon.search}
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Wykonawcy, utwory, albumy" enterKeyHint="search" autoCorrect="off" autoCapitalize="off" />
-        {q && <button type="button" className="clear" onClick={() => { setQ(''); setRes({ loading: false, data: null, error: '' }); }}>✕</button>}
+        <input value={q} onChange={(e)=>change(e.target.value)} onFocus={()=>setEditing(true)} placeholder="Wykonawcy, utwory, albumy" enterKeyHint="search" autoCorrect="off" autoCapitalize="off"/>
+        {q&&<button type="button" className="clear" onClick={clear} aria-label="Wyczyść wyszukiwanie">✕</button>}
       </form>
-      {sug.length > 0 && (
-        <div className="suggest">{sug.map((s) => <div key={s} onClick={() => run(s)}>{Icon.search}<span>{s}</span></div>)}</div>
-      )}
-      {res.loading && <Loader />}
-      {res.error && <Err text={res.error} />}
-      {res.data?.map((sec, i) => <Section key={i} s={sec} onOpen={onOpen} />)}
+      {sug.length>0&&editing&&<div className="suggest">{sug.map((item)=><div key={item} onClick={()=>run(item)}>{Icon.search}<span>{item}</span></div>)}</div>}
+      {!q.trim()&&history.length>0&&<section className="search-history">
+        <div className="search-history-head"><h2>Ostatnie wyszukiwania</h2><button onClick={()=>{setHistory([]);saveSearch({history:[]});}}>Wyczyść</button></div>
+        {history.map(term=><div className="search-history-row" key={term}><button className="search-history-term" onClick={()=>run(term)}><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 7v5l3 2"/></svg><span>{term}</span></button><button className="search-history-remove" aria-label={'Usuń '+term} onClick={()=>remove(term)}>×</button></div>)}
+      </section>}
+      {res.loading&&<Loader/>}
+      {res.error&&<Err text={res.error}/>}
+      {!res.loading&&!res.data&&q.trim()&&searchSnapshot.term===q&&!res.error&&<button className="search-restore" onClick={()=>run(q)}>Pokaż wyniki ponownie</button>}
+      {q.trim()&&res.data?.map((sec,i)=><Section key={i} s={sec} onOpen={onOpen}/>)}
     </div>
   );
 }
