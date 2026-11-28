@@ -38,13 +38,15 @@ const set = (patch) => {
   state = { ...state, ...patch };
   subs.forEach((f) => f());
 };
-export const usePlayer = () => useSyncExternalStore((f) => { subs.add(f); return () => subs.delete(f); }, () => state);
+const subscribePlayer = f => { subs.add(f); return () => subs.delete(f); };
+const subscribeTime = f => { tsubs.add(f); return () => tsubs.delete(f); };
+export const usePlayer = (select = s => s) => useSyncExternalStore(subscribePlayer, () => select(state));
 
 // Playback position lives in its own tiny store so the whole UI doesn't re-render 4x/second.
 let timeState = { time: 0, duration: 0 };
 const tsubs = new Set();
-const setTime = (patch) => { timeState = { ...timeState, ...patch }; tsubs.forEach((f) => f()); };
-export const useTime = () => useSyncExternalStore((f) => { tsubs.add(f); return () => tsubs.delete(f); }, () => timeState);
+const setTime = (patch) => { if(Object.keys(patch).every(k=>Object.is(timeState[k],patch[k]))) return; timeState = { ...timeState, ...patch }; tsubs.forEach((f) => f()); };
+export const useTime = (select = s => s) => useSyncExternalStore(subscribeTime, () => select(timeState));
 export const current = () => state.queue[state.index];
 export const videoElement = videoEl;
 export const audioElement = audioEl;

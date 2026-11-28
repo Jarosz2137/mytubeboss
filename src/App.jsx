@@ -1,6 +1,6 @@
 import { energyLevel } from './energy.js';
 import { profStart, profEnd, profJob, profReport, profilerPanel, profIsolated } from './profiler.js';
-import { useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, useCallback, memo } from 'react';
 import * as yt from './yt.js';
 import { Preferences } from '@capacitor/preferences';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
@@ -23,7 +23,7 @@ import { loadIndex, onOffline, offlineState, isDownloaded, isQueued, downloadTra
 const tap = (style = ImpactStyle.Light) => { Haptics.impact({ style }).catch(() => {}); };
 
 // Long text scrolls like a car-radio display instead of being cut off.
-function Marquee({ text }) {
+const Marquee = memo(function Marquee({ text }) {
   const box = useRef(null);
   const inner = useRef(null);
   const [run, setRun] = useState(0);
@@ -48,7 +48,7 @@ function Marquee({ text }) {
       </span>
     </span>
   );
-}
+});
 
 function Wordmark({ size = 'md' }) {
   return (
@@ -172,9 +172,8 @@ function useHold(onHold) {
 }
 
 function TrackRow({ t, list, i, onOpen, showCover = true, index, onRemove }) {
-  const p = usePlayer();
-  const cur = current();
-  const active = cur && cur.id === t.id;
+  const rowState = usePlayer(s => s.queue[s.index]?.id === t.id ? (s.playing ? 2 : 1) : 0);
+  const active = rowState !== 0;
   const hold = useHold(() => openAddSheet(t));
   const { held, ...holdProps } = hold;
   return (
@@ -191,7 +190,7 @@ function TrackRow({ t, list, i, onOpen, showCover = true, index, onRemove }) {
         </div>
       </div>
       {isDownloaded(t.id) && <span className="row-dl" aria-label="Pobrane">{Icon.download}</span>}
-      {active && p.playing ? <div className="eq"><span /><span /><span /></div> : <div className="row-dur">{t.duration ? fmt(t.duration) : ''}</div>}
+      {rowState === 2 ? <div className="eq"><span /><span /><span /></div> : <div className="row-dur">{t.duration ? fmt(t.duration) : ''}</div>}
       {onRemove
         ? <button className="icon-btn small" onClick={(e) => { e.stopPropagation(); tap(); onRemove(); }} aria-label="Usuń z playlisty">{Icon.minus}</button>
         : <button className="icon-btn small" onClick={(e) => { e.stopPropagation(); addNext(t); }} aria-label="Zagraj następne">{Icon.plus}</button>}
@@ -1194,11 +1193,14 @@ function Scene({ id }) {
 
 function LyricsPanel({ t }) {
   const [ly, setLy] = useState(undefined);
-  const { time } = useTime();
   const box = useRef(null);
   useEffect(() => { setLy(undefined); let alive = true; getLyrics(t).then((r) => alive && setLy(r)); return () => { alive = false; }; }, [t?.id]);
-  let cur = -1;
-  if (ly?.synced) for (let i = 0; i < ly.lines.length; i++) { if (ly.lines[i].t <= time + 0.25) cur = i; else break; }
+  const cur = useTime(({time}) => {
+    if (!ly?.synced) return -1;
+    let lo=0, hi=ly.lines.length;
+    while(lo<hi) { const mid=(lo+hi)>>>1; if(ly.lines[mid].t<=time+.25) lo=mid+1; else hi=mid; }
+    return lo-1;
+  });
   useEffect(() => {
     const el = box.current?.querySelector('.ly-line.on');
     if (el && box.current) box.current.scrollTo({ top: el.offsetTop - box.current.clientHeight * 0.38, behavior: 'smooth' });
@@ -1670,8 +1672,7 @@ export default function App() {
   }, []);
 
   const top = stack[stack.length - 1];
-  const pl = usePlayer();
-  const curThumb = pl.queue[pl.index]?.thumb;
+  const curThumb = usePlayer(s => s.queue[s.index]?.thumb);
   const cols = useCoverColors(curThumb);
   const vars = cols ? { '--c1': cols[0], '--c2': cols[1], '--c3': cols[2] } : {};
 
