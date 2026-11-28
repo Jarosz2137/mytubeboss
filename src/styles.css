@@ -1217,10 +1217,16 @@ html.feed-scrolling .feed-section .mq-track { animation-play-state:paused!import
 .wr-kicker { min-height:38px; display:flex; align-items:center; padding-left:42px; margin-top:0; }
 .wr-hero > .empty-note { padding:0; margin:12px 0 18px; font-size:12px; text-align:left; line-height:1.45; }
 
-/* Home shelves share the mini player's outer gutter, including while scrolling. */
-.view:has(> .home-hero) > .feed-section { margin-inline:-8px; }
-.view:has(> .home-hero) > .feed-section .section { padding-inline:8px; }
-.view:has(> .home-hero) > .feed-section :is(.qp-pages,.la-grid,.shelf,.lshelf) { margin-inline:-8px; padding-inline:0; scroll-padding-inline:0; }
+/* The app shell scrolls vertically only. Horizontal gestures belong to shelves. */
+html, body, #root { overflow-x:hidden; width:100%; max-width:100%; }
+.scroller { overflow-x:hidden; overscroll-behavior-x:none; }
+.view { min-width:0; }
+.view:has(> .home-hero) { width:100%; min-width:0; }
+.view:has(> .home-hero) > .feed-section { margin-inline:-8px; min-width:0; }
+.view:has(> .home-hero) > .feed-section .section { padding-inline:8px; min-width:0; }
+.view:has(> .home-hero) > .feed-section :is(.qp-pages,.la-grid,.shelf,.lshelf) { margin-inline:-8px; padding-inline:0; scroll-padding-inline:0; min-width:0; }
+.scroller :is(.shelf,.qp-pages,.la-grid,.chips,.lshelf,.local-row) { overscroll-behavior-x:contain; touch-action:pan-x pan-y; }
+.scroller .hh-content { min-width:0; }
 @media (orientation:landscape) {
   .view:has(> .home-hero) > .feed-section { max-width:720px; margin-inline:auto; }
   .view:has(> .home-hero) > .feed-section .section { padding-inline:8px; }

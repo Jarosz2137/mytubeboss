@@ -1753,6 +1753,7 @@ export default function App() {
     const root=document.documentElement;
     let timer=0;
     const scroll=()=>{
+      if(node.scrollLeft!==0)node.scrollLeft=0;
       scrollAt.current=Date.now();
       if(!root.classList.contains('feed-scrolling'))root.classList.add('feed-scrolling');
       clearTimeout(timer);
