@@ -328,11 +328,9 @@ function tagSection(raw, sec) {
 
 const homeJobs = new Map();
 let homeTail = Promise.resolve();
-const homeCache = new Map();
-const homeFullAt = new Map();
 let listeningRevision = 0;
-const homeRevision = new Map();
 export function invalidateHomeAfterListen() { listeningRevision++; }
+let previousHomeSignature = new Map();
 export function home(filter) {
   const key = filter || '';
   if (homeJobs.has(key)) { console.info('[home] reuse pending refresh'); return homeJobs.get(key); }
@@ -344,20 +342,15 @@ export function home(filter) {
   return job;
 }
 async function fetchHome(filter, key) {
-  const cached = homeCache.get(key);
   const revision = listeningRevision;
-  const full = !cached || Date.now() - (homeFullAt.get(key) || 0) > 300000 || homeRevision.get(key) !== revision;
-  const pages = full ? 3 : 1;
-  const pageSections = [];
   const started = performance.now();
-  console.info('[home] refresh start');
+  console.info('[home] refresh start', 'full', 'listen revision', revision);
   const yt = await getYT();
   let feed = await yt.music.getHomeFeed();
   const chips = (() => { try { return feed.filters || []; } catch { return []; } })();
   if (filter) feed = await feed.applyFilter(filter);
   const sections = [];
-  for (let page = 0; page < pages; page++) {
-    const offset = sections.length;
+  for (let page = 0; page < 3; page++) {
     for (const raw of feed.sections || []) {
       const [sec] = toSections([raw]);
       if (!sec) continue;
@@ -366,32 +359,16 @@ async function fetchHome(filter, key) {
       sections.push(sec);
     }
     console.info('[home] page', page + 1, 'sections', sections.length);
-    const previous = cached?.[page] || [];
-    for (let i = offset; i < sections.length; i++) {
-      const sec = sections[i];
-      const old = previous.find(s => s.kind === sec.kind && s.title === sec.title && JSON.stringify(s) === JSON.stringify(sec));
-      if (old) sections[i] = old;
-    }
-    pageSections.push(sections.slice(offset));
-    if (page === pages - 1 || !feed.has_continuation) break;
+    if (page === 2 || !feed.has_continuation) break;
     await new Promise(resolve => setTimeout(resolve, 0));
-    try { feed = await feed.getContinuation(); } catch { break; }
+    try { feed = await feed.getContinuation(); } catch (e) { console.warn('[home] continuation', e?.message); break; }
   }
-  if (!full && cached && feed.has_continuation) pageSections.push(...cached.slice(1));
-  if (full) { homeFullAt.set(key, Date.now()); homeRevision.set(key, revision); }
-  homeCache.delete(key);
-  homeCache.set(key, pageSections);
-  while (homeCache.size > 6) { const old = homeCache.keys().next().value; homeCache.delete(old); homeFullAt.delete(old); homeRevision.delete(old); }
-  if (!full && cached) {
-    const seen = new Set(sections.map(s => s.kind + ':' + s.title));
-    for (const sec of pageSections.slice(1).flat()) {
-      const id = sec.kind + ':' + sec.title;
-      if (!seen.has(id)) { sections.push(sec); seen.add(id); }
-    }
-  }
-  // Quick picks + Listen again on top, like the YT Music app
   const order = { quick: 0, again: 1, normal: 2 };
   sections.sort((a, b) => order[a.kind] - order[b.kind]);
+  const signature = sections.map(s => s.kind+':'+s.title+':'+s.items.map(i=>i.id).join(',')).join('|');
+  console.info('[home] server recommendations', previousHomeSignature.has(key) ? (previousHomeSignature.get(key)===signature?'unchanged':'changed') : 'first fetch');
+  previousHomeSignature.delete(key); previousHomeSignature.set(key,signature);
+  while(previousHomeSignature.size>6) previousHomeSignature.delete(previousHomeSignature.keys().next().value);
   console.info('[home] refresh ready', sections.length, 'sections', Math.round(performance.now()-started), 'ms');
   return { chips, sections };
 }
